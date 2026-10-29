@@ -1,0 +1,35 @@
+# ---- Java / Maven (api/ and console-app/) ----
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/
+mvnw
+mvnw.cmd
+
+# db.properties IS committed on purpose: it holds only a local throwaway
+# password (timebank/timebank) and every teammate needs it to run the API.
+# If this ever points at a real database, add it back to this file.
+
+# ---- Oracle / SQL*Plus ----
+*.lst
+*.log
+afiedt.buf
+
+# ---- Flutter ----
+# timebank/ has its own .gitignore; these catch anything that escapes it.
+**/.dart_tool/
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+# ---- Editors ----
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ---- Transfer leftovers ----
+_timebank_payload.zip
+*.bak

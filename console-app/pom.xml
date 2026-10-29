@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.timebank</groupId>
+  <artifactId>timebank-app</artifactId>
+  <version>1.0</version>
+  <packaging>jar</packaging>
+  <name>TimeBank JDBC Front End</name>
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <!--
+      Oracle's own JDBC driver.
+
+      ojdbc11 is the build for JDK 11 and later. It is the THIN driver:
+      pure Java, speaks Oracle's wire protocol directly, and needs no
+      Oracle Instant Client installed on the machine. That is why the
+      whole project runs from a single `mvn` command.
+
+      ucp11 is Oracle's Universal Connection Pool. Opening a database
+      connection takes hundreds of milliseconds, so the app opens a few
+      once at startup and hands them out instead.
+    -->
+    <dependency>
+      <groupId>com.oracle.database.jdbc</groupId>
+      <artifactId>ojdbc11</artifactId>
+      <version>23.5.0.24.07</version>
+    </dependency>
+    <dependency>
+      <groupId>com.oracle.database.jdbc</groupId>
+      <artifactId>ucp11</artifactId>
+      <version>23.5.0.24.07</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>timebank</finalName>
+    <plugins>
+      <!-- Builds one runnable jar with the driver bundled inside. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.3</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>com.timebank.ui.TimeBankConsole</mainClass>
+                </transformer>
+              </transformers>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
