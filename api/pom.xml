@@ -26,6 +26,27 @@
 
   <properties>
     <java.version>21</java.version>
+
+    <!--
+      WHY THIS PROPERTY IS HERE.
+
+      The spring-boot-starter-parent above brings in a bill of materials
+      that already pins a version for every library Spring Boot knows
+      about, the Oracle driver included.  Boot 3.3.5 pins it at 21.9.0.0.
+
+      That version will not work here.  From 21c onwards Oracle's thin
+      driver dropped support for databases older than 12.1, and this
+      project runs on XE 11g (11.2.0.2).  The 19c line is the last one
+      that still connects to it.
+
+      Overriding the pin with a <version> tag on each dependency works,
+      but the IDE then warns "Overrides version defined in
+      DependencyManagement".  Setting the property Boot itself uses
+      changes the MANAGED version instead, so the dependencies below
+      inherit 19.23.0.0 cleanly, every Oracle artifact stays on the same
+      line, and the warning goes away.
+    -->
+    <oracle-database.version>19.23.0.0</oracle-database.version>
   </properties>
 
   <dependencies>
@@ -36,20 +57,17 @@
 
     <!--
       Oracle's own JDBC driver, thin mode: pure Java, no Oracle Instant
-      Client to install. ucp is the connection pool.
+      Client to install.  ucp is Oracle's Universal Connection Pool.
 
-      ojdbc8 (19c) rather than ojdbc11 (23ai), because the database here
-      is XE 11g and the newer drivers are only certified from 19c on.
+      Both take their version from oracle-database.version above.
     -->
     <dependency>
       <groupId>com.oracle.database.jdbc</groupId>
       <artifactId>ojdbc8</artifactId>
-      <version>19.23.0.0</version>
     </dependency>
     <dependency>
       <groupId>com.oracle.database.jdbc</groupId>
       <artifactId>ucp</artifactId>
-      <version>19.23.0.0</version>
     </dependency>
   </dependencies>
 

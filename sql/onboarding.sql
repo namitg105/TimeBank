@@ -132,7 +132,6 @@ ORDER  BY s.student_id;
 --  Q2 -- MULTI-TABLE JOIN  (four tables)
 --  Who is a tutor, a tutee, both, or neither yet.
 --
---  THIS IS THE MOST IMPORTANT QUERY IN MEMBER 1'S SET. The two LEFT
 --  JOINs to the subclass tables reveal each student's role:
 --
 --    in TUTOR only   -> teaches
@@ -166,8 +165,6 @@ FROM   student s
        LEFT JOIN tutee      e ON e.student_id = s.student_id
 ORDER  BY role_in_system, s.student_id;
 
-
-
 PROMPT
 PROMPT ===== M1-Q3 : balance below campus average (NESTED) =====
 
@@ -191,7 +188,7 @@ ORDER  BY credit_balance, s.student_id;
 -- #####################################################################
 --  Q4 -- CORRELATED SUBQUERY
 --  Registered more than 30 days ago but has never booked anything.
---
+--                                                            
 --  NOT EXISTS is re-evaluated for EVERY outer row, using that row's
 --  student_id -- that is the correlation. Oracle stops at the first
 --  match it finds, so it is cheaper than counting all the rows and
@@ -245,7 +242,6 @@ WHERE  s.account_status = 'ACTIVE'          -- filters ROWS
 GROUP  BY d.school, d.dept_name
 HAVING COUNT (s.student_id) >= 1            -- filters GROUPS
 ORDER  BY students DESC;
-
 
 -- #####################################################################
 --  Q6 -- ANALYTIC (WINDOW) FUNCTIONS

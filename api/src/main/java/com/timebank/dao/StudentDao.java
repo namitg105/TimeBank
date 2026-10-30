@@ -1,6 +1,7 @@
 package com.timebank.dao;
 
 import com.timebank.db.Database;
+import com.timebank.db.SqlLog;
 import com.timebank.model.Student;
 
 import java.math.BigDecimal;
@@ -57,6 +58,11 @@ public class StudentDao {
                       p_student_id => ?);
                 END;""";
 
+        long t0 = SqlLog.q("StudentDao.register  ->  PKG_TIMEBANK.ENROL_STUDENT"
+                         + "   (writes STUDENT + the opening GRANT in one transaction)",
+                plsql, regNo, firstName, lastName, email, dob, deptId,
+                block, roomNo, city);
+
         Connection c = null;
         try {
             c = Database.get();
@@ -75,10 +81,13 @@ public class StudentDao {
 
                 int newId = cs.getInt(10);
                 c.commit();
+                SqlLog.called("student " + newId
+                            + " created, starter credits posted, COMMIT", t0);
                 return newId;
             }
         } catch (SQLException e) {
             Database.silentRollback(c);
+            SqlLog.failed(Database.explain(e), t0);
             throw e;
         } finally {
             if (c != null) c.close();          // returns it to the pool
@@ -89,17 +98,22 @@ public class StudentDao {
     public void addPhone(int studentId, String phone) throws SQLException {
         String sql = "INSERT INTO student_phone (student_id, phone_no) VALUES (?, ?)";
 
+        long t0 = SqlLog.q("StudentDao.addPhone  (PhoneNo is multivalued,"
+                         + " so it has its own table)", sql, studentId, phone);
+
         Connection c = null;
         try {
             c = Database.get();
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 ps.setInt(1, studentId);
                 ps.setString(2, phone);
-                ps.executeUpdate();
+                int n = ps.executeUpdate();
                 c.commit();
+                SqlLog.changed(n, t0);
             }
         } catch (SQLException e) {
             Database.silentRollback(c);
+            SqlLog.failed(Database.explain(e), t0);
             throw e;
         } finally {
             if (c != null) c.close();
@@ -129,6 +143,10 @@ public class StudentDao {
                 WHERE  student_id     = ?
                 AND    account_status <> 'INACTIVE'""";
 
+        long t0 = SqlLog.q("StudentDao.deactivate  (SOFT DELETE -- the foreign"
+                         + " keys from BOOKING and CREDIT_TXN forbid a real one)",
+                sql, studentId);
+
         Connection c = null;
         try {
             c = Database.get();
@@ -136,10 +154,12 @@ public class StudentDao {
                 ps.setInt(1, studentId);
                 int rows = ps.executeUpdate();
                 c.commit();
+                SqlLog.changed(rows, t0);
                 return rows;
             }
         } catch (SQLException e) {
             Database.silentRollback(c);
+            SqlLog.failed(Database.explain(e), t0);
             throw e;
         } finally {
             if (c != null) c.close();
@@ -158,6 +178,10 @@ public class StudentDao {
     public int removePhone(int studentId, String phone) throws SQLException {
         String sql = "DELETE FROM student_phone WHERE student_id = ? AND phone_no = ?";
 
+        long t0 = SqlLog.q("StudentDao.removePhone  (a REAL delete -- nothing"
+                         + " downstream references STUDENT_PHONE)",
+                sql, studentId, phone);
+
         Connection c = null;
         try {
             c = Database.get();
@@ -166,10 +190,12 @@ public class StudentDao {
                 ps.setString(2, phone);
                 int rows = ps.executeUpdate();
                 c.commit();
+                SqlLog.changed(rows, t0);
                 return rows;
             }
         } catch (SQLException e) {
             Database.silentRollback(c);
+            SqlLog.failed(Database.explain(e), t0);
             throw e;
         } finally {
             if (c != null) c.close();
@@ -218,6 +244,10 @@ public class StudentDao {
 
         String pattern = "%" + term + "%";
 
+        long t0 = SqlLog.q("StudentDao.search  (Member 1 Q1 + Q2: derived age,"
+                         + " and TUTOR/TUTEE/BOTH/NEITHER from two LEFT JOINs)",
+                sql, pattern, pattern);
+
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql)) {
 
@@ -225,7 +255,9 @@ public class StudentDao {
             ps.setString(2, pattern);
 
             try (ResultSet rs = ps.executeQuery()) {
-                return mapAll(rs);
+                List<Student> out = mapAll(rs);
+                SqlLog.rows(out.size(), t0);
+                return out;
             }
         }
     }
@@ -243,11 +275,17 @@ public class StudentDao {
     public BigDecimal balanceOf(int studentId) throws SQLException {
         String sql = "SELECT pkg_timebank.fn_balance(?) FROM dual";
 
+        long t0 = SqlLog.q("StudentDao.balanceOf  (CreditBalance is DERIVED --"
+                         + " nothing stores it, it is summed from the ledger)",
+                sql, studentId);
+
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setInt(1, studentId);
             try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getBigDecimal(1) : BigDecimal.ZERO;
+                BigDecimal bal = rs.next() ? rs.getBigDecimal(1) : BigDecimal.ZERO;
+                SqlLog.called("balance = " + bal, t0);
+                return bal;
             }
         }
     }

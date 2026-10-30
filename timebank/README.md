@@ -32,10 +32,10 @@ cd ../api
 mvn spring-boot:run
 ```
 
-It listens on `0.0.0.0:8080`. Check it:
+It listens on `0.0.0.0:8081`. Check it:
 
 ```bash
-curl http://localhost:8080/api/ledger/audit
+curl http://localhost:8081/api/ledger/audit
 ```
 
 **3. Run the app:**
@@ -52,14 +52,14 @@ your computer. `ApiClient.defaultBaseUrl` already handles this:
 
 | Where the app runs | Base URL |
 |---|---|
-| Android emulator | `http://10.0.2.2:8080` |
-| iOS simulator, desktop, web | `http://localhost:8080` |
-| **A real phone** | `http://<your-computer-LAN-ip>:8080` |
+| Android emulator | `http://10.0.2.2:8081` |
+| iOS simulator, desktop, web | `http://localhost:8081` |
+| **A real phone** | `http://<your-computer-LAN-ip>:8081` |
 
 For a real phone, pass it in:
 
 ```dart
-await initDependencies(baseUrl: 'http://192.168.1.14:8080');
+await initDependencies(baseUrl: 'http://192.168.1.14:8081');
 ```
 
 Both devices must be on the same Wi-Fi.

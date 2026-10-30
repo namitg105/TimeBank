@@ -79,7 +79,7 @@ mvn spring-boot:run
 Confirm it is alive:
 
 ```bash
-curl http://localhost:8080/api/ledger/audit
+curl http://localhost:8081/api/ledger/audit
 ```
 
 ### 3. The Flutter app
@@ -98,7 +98,7 @@ a *real phone* you need your laptop's LAN address instead:
 
 ```dart
 // lib/main.dart
-await initDependencies(baseUrl: 'http://192.168.1.14:8080');
+await initDependencies(baseUrl: 'http://192.168.1.14:8081');
 ```
 
 Both devices must be on the same Wi-Fi.

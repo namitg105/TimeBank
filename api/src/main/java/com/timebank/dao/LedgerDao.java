@@ -1,6 +1,7 @@
 package com.timebank.dao;
 
 import com.timebank.db.Database;
+import com.timebank.db.SqlLog;
 import com.timebank.model.LedgerEntry;
 
 import java.math.BigDecimal;
@@ -53,6 +54,9 @@ public class LedgerDao {
                      WHERE student_id = ?),
                     ?, ?, NULL)""";
 
+        long t0 = SqlLog.q("LedgerDao.postAdjustment  (admin GRANT/PENALTY)",
+                sql, type, amount, amount, studentId, remarks, studentId);
+
         Connection c = null;
         try {
             c = Database.get();
@@ -64,7 +68,7 @@ public class LedgerDao {
                 ps.setInt(4, studentId);
                 ps.setString(5, remarks);
                 ps.setInt(6, studentId);
-                ps.executeUpdate();
+                int n = ps.executeUpdate();
 
                 long id = 0;
                 try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -73,10 +77,12 @@ public class LedgerDao {
                     }
                 }
                 c.commit();
+                SqlLog.changed(n, t0);
                 return id;
             }
         } catch (SQLException e) {
             Database.silentRollback(c);
+            SqlLog.failed(Database.explain(e), t0);
             throw e;
         } finally {
             if (c != null) c.close();
@@ -106,6 +112,9 @@ public class LedgerDao {
                 WHERE  t.student_id = ?
                 ORDER  BY t.txn_id DESC""";
 
+        long t0 = SqlLog.q("LedgerDao.passbook  (one student's credit history)",
+                sql, studentId);
+
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql)) {
 
@@ -116,7 +125,12 @@ public class LedgerDao {
                 while (rs.next()) {
                     // getObject, not getInt: getInt turns SQL NULL into 0,
                     // which would silently claim booking #0 caused the row.
-                    Integer bookingId = (Integer) rs.getObject("booking_id");
+                    //
+                    // Read it as Number, never cast straight to Integer:
+                    // Oracle hands a NUMBER column back as BigDecimal, so
+                    // (Integer) rs.getObject(...) throws ClassCastException.
+                    Number bkRaw = (Number) rs.getObject("booking_id");
+                    Integer bookingId = (bkRaw == null) ? null : bkRaw.intValue();
 
                     out.add(new LedgerEntry(
                             rs.getLong("txn_id"),
@@ -128,6 +142,7 @@ public class LedgerDao {
                             bookingId,
                             rs.getString("remarks")));
                 }
+                SqlLog.rows(out.size(), t0);
                 return out;
             }
         }
@@ -153,6 +168,8 @@ public class LedgerDao {
                         WHERE txn_type IN ('GRANT','PENALTY')) AS grants
                 FROM   dual""";
 
+        long t0 = SqlLog.q("LedgerDao.audit  (closed-economy check)", sql);
+
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -162,6 +179,12 @@ public class LedgerDao {
             BigDecimal escrow   = rs.getBigDecimal("escrow");
             BigDecimal grants   = rs.getBigDecimal("grants");
             BigDecimal drift    = balances.add(escrow).subtract(grants);
+
+            SqlLog.called(String.format(
+                    "balances %s + escrow %s = %s vs issued %s  ->  drift %s  [%s]",
+                    balances, escrow, balances.add(escrow), grants, drift,
+                    drift.compareTo(BigDecimal.ZERO) == 0 ? "BALANCED" : "DRIFT"),
+                    t0);
 
             return new Audit(balances, escrow, grants, drift);
         }
@@ -196,6 +219,8 @@ public class LedgerDao {
                           a.first_name, a.last_name, c.first_name, c.last_name
                 ORDER  BY a_taught_b DESC""";
 
+        long t0 = SqlLog.q("LedgerDao.collusionReport  (fraud detector)", sql);
+
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -206,6 +231,7 @@ public class LedgerDao {
                         rs.getString("student_a"), rs.getString("student_b"),
                         rs.getInt("a_taught_b"), rs.getInt("b_taught_a")));
             }
+            SqlLog.rows(out.size(), t0);
             return out;
         }
     }
@@ -234,6 +260,8 @@ public class LedgerDao {
                        JOIN student s ON s.student_id = ts.tutor_id
                 ORDER  BY ts.hours DESC""";
 
+        long t0 = SqlLog.q("LedgerDao.leaderboard  (CTE + DENSE_RANK)", sql);
+
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -245,6 +273,7 @@ public class LedgerDao {
                         rs.getString("badge_level"), rs.getInt("sessions"),
                         rs.getBigDecimal("hours"), rs.getBigDecimal("rating")));
             }
+            SqlLog.rows(out.size(), t0);
             return out;
         }
     }

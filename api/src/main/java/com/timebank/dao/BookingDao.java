@@ -1,6 +1,7 @@
 package com.timebank.dao;
 
 import com.timebank.db.Database;
+import com.timebank.db.SqlLog;
 import com.timebank.model.Booking;
 
 import java.sql.*;
@@ -50,6 +51,12 @@ public class BookingDao {
                       p_booking_id => ?, p_session_code => ?);
                 END;""";
 
+        long t0 = SqlLog.q("BookingDao.book  ->  PKG_TIMEBANK.BOOK_SESSION"
+                         + "   (locks the slot FOR UPDATE, checks the collusion"
+                         + " cap, inserts, moves credits into escrow)",
+                plsql, tuteeId, tutorId, subjectId, slotNo, when,
+                startTime, hours, mode, venue);
+
         Connection c = null;
         try {
             c = Database.get();
@@ -69,10 +76,14 @@ public class BookingDao {
 
                 BookingResult r = new BookingResult(cs.getInt(10), cs.getString(11));
                 c.commit();
+                SqlLog.called("booking " + r.bookingId()
+                            + " created, session code " + r.sessionCode()
+                            + ", credits now in escrow, COMMIT", t0);
                 return r;
             }
         } catch (SQLException e) {
             Database.silentRollback(c);
+            SqlLog.failed(Database.explain(e), t0);
             throw e;
         } finally {
             if (c != null) c.close();
@@ -87,7 +98,9 @@ public class BookingDao {
      * completed, so a tutor cannot claim credits for a no-show.
      */
     public void checkIn(int bookingId, String sessionCode) throws SQLException {
-        callOneArg("BEGIN pkg_timebank.check_in(?, ?); END;", bookingId, sessionCode);
+        callOneArg("BookingDao.checkIn  (the session code proves the tutee"
+                 + " turned up -- without it the confirm trigger refuses)",
+                "BEGIN pkg_timebank.check_in(?, ?); END;", bookingId, sessionCode);
     }
 
     // -----------------------------------------------------------------
@@ -103,12 +116,17 @@ public class BookingDao {
      * debit. Getting that wrong would charge the tutee twice.
      */
     public void confirm(int bookingId, String role) throws SQLException {
-        callOneArg("BEGIN pkg_timebank.confirm_session(?, ?); END;", bookingId, role);
+        callOneArg("BookingDao.confirm  (credits move only when BOTH sides have"
+                 + " confirmed; completion writes ONE positive TRANSFER, because"
+                 + " the tutee was already debited by the HOLD at booking time)",
+                "BEGIN pkg_timebank.confirm_session(?, ?); END;", bookingId, role);
     }
 
     /** Cancels. Who cancels, and how late, decides where the escrow goes. */
     public void cancel(int bookingId, String byRole) throws SQLException {
-        callOneArg("BEGIN pkg_timebank.cancel_booking(?, ?); END;", bookingId, byRole);
+        callOneArg("BookingDao.cancel  (who cancels, and how late, decides"
+                 + " where the escrow goes)",
+                "BEGIN pkg_timebank.cancel_booking(?, ?); END;", bookingId, byRole);
     }
 
     // -----------------------------------------------------------------
@@ -132,15 +150,21 @@ public class BookingDao {
                                    WHERE  t.booking_id = b.booking_id)""";
 
         Connection c = null;
+        long t0 = SqlLog.q("BookingDao.purgeAbandoned  (only REQUESTED rows may"
+                         + " really be deleted -- anything in escrow is"
+                         + " referenced by CREDIT_TXN and Oracle refuses)", sql);
+
         try {
             c = Database.get();
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 int rows = ps.executeUpdate();
                 c.commit();
+                SqlLog.changed(rows, t0);
                 return rows;
             }
         } catch (SQLException e) {
             Database.silentRollback(c);
+            SqlLog.failed(Database.explain(e), t0);
             throw e;
         } finally {
             if (c != null) c.close();
@@ -160,26 +184,34 @@ public class BookingDao {
      * both sides of the platform.
      */
     public List<Booking> forStudent(int studentId) throws SQLException {
-        return query(BASE_SELECT + """
+        return query("BookingDao.forStudent  (the SAME id is bound twice, once"
+                   + " per role -- that is the overlapping specialization"
+                   + " surfacing in the application layer)",
+                BASE_SELECT + """
                 WHERE  b.tutor_id = ? OR b.tutee_id = ?
                 ORDER  BY b.sched_date DESC""",
                 ps -> {
                     ps.setInt(1, studentId);
                     ps.setInt(2, studentId);
-                });
+                },
+                studentId, studentId);
     }
 
     /** Filter by status, e.g. CONFIRMED or COMPLETED. */
     public List<Booking> byStatus(String status) throws SQLException {
-        return query(BASE_SELECT + """
+        return query("BookingDao.byStatus  (six-table join)",
+                BASE_SELECT + """
                 WHERE  b.status = ?
                 ORDER  BY b.sched_date DESC""",
-                ps -> ps.setString(1, status));
+                ps -> ps.setString(1, status),
+                status);
     }
 
     /** Everything, newest first. */
     public List<Booking> listAll() throws SQLException {
-        return query(BASE_SELECT + " ORDER BY b.booking_id", ps -> { });
+        return query("BookingDao.listAll  (Member 3 Q2: the six-table join that"
+                   + " rebuilds each session from its foreign keys)",
+                BASE_SELECT + " ORDER BY b.booking_id", ps -> { });
     }
 
     // -----------------------------------------------------------------
@@ -213,7 +245,10 @@ public class BookingDao {
         void bind(PreparedStatement ps) throws SQLException;
     }
 
-    private List<Booking> query(String sql, Binder binder) throws SQLException {
+    private List<Booking> query(String label, String sql, Binder binder,
+                                Object... binds) throws SQLException {
+        long t0 = SqlLog.q(label, sql, binds);
+
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql)) {
 
@@ -237,12 +272,17 @@ public class BookingDao {
                             rs.getString("confirms"),
                             rs.getTimestamp("check_in_at") != null));
                 }
+                SqlLog.rows(out.size(), t0);
                 return out;
             }
         }
     }
 
-    private void callOneArg(String plsql, int id, String arg) throws SQLException {
+    private void callOneArg(String label, String plsql, int id, String arg)
+            throws SQLException {
+
+        long t0 = SqlLog.q(label, plsql, id, arg);
+
         Connection c = null;
         try {
             c = Database.get();
@@ -251,9 +291,11 @@ public class BookingDao {
                 cs.setString(2, arg);
                 cs.execute();
                 c.commit();
+                SqlLog.called("accepted, COMMIT", t0);
             }
         } catch (SQLException e) {
             Database.silentRollback(c);
+            SqlLog.failed(Database.explain(e), t0);
             throw e;
         } finally {
             if (c != null) c.close();

@@ -45,12 +45,12 @@ class ApiClient {
   /// the host machine.
   ///
   /// On a real phone, replace this with the computer's LAN address, e.g.
-  /// `http://192.168.1.14:8080` — and make sure the Spring Boot service
+  /// `http://192.168.1.14:8081` — and make sure the Spring Boot service
   /// is bound to 0.0.0.0, which application.properties already does.
   static String get defaultBaseUrl {
-    if (kIsWeb) return 'http://localhost:8080';
-    if (Platform.isAndroid) return 'http://10.0.2.2:8080';
-    return 'http://localhost:8080';
+    if (kIsWeb) return 'http://localhost:8081';
+    if (Platform.isAndroid) return 'http://10.0.2.2:8081';
+    return 'http://localhost:8081';
   }
 
   Future<dynamic> get(String path, {Map<String, dynamic>? query}) async =>
