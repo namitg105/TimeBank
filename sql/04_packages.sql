@@ -1,33 +1,12 @@
--- =====================================================================
---  TimeBank
---  File    : 04_packages.sql
---  Purpose : PKG_TIMEBANK -- every write to the credit economy goes
---            through here.  Nothing else is allowed to post a ledger
---            row, which is what keeps the economy provably closed.
---  Module  : Module 4 (ACID, concurrency control, recovery) and
---            Module 2 (business rules from the requirement analysis).
---
---  WHY A PACKAGE AND NOT TRIGGERS?
---  1. Locking.  Preventing two tutees from grabbing the same hour needs
---     SELECT ... FOR UPDATE on the slot row.  A trigger cannot lock a
---     row before its own statement runs; a procedure can.
---  2. Mutating tables.  The double-booking and collusion checks read
---     BOOKING while BOOKING is being inserted into, which a row trigger
---     may not do (ORA-04091).  In a procedure the read happens before
---     the INSERT starts, so there is no restriction.
---  3. Atomicity.  One session touches BOOKING and CREDIT_TXN together.
---     Wrapping both in one procedure makes the pair all-or-nothing.
--- =====================================================================
-
 SET SERVEROUTPUT ON
 
 CREATE OR REPLACE PACKAGE pkg_timebank AS
 
-  -- ---- derived value helpers -------------------------------------
+  ------ derived value helpers -------------------------------------
   FUNCTION  fn_balance       (p_student_id IN NUMBER) RETURN NUMBER;
   FUNCTION  fn_hours_taught  (p_tutor_id   IN NUMBER) RETURN NUMBER;
 
-  -- ---- onboarding -------------------------------------------------
+  ------ onboarding -------------------------------------------------
   PROCEDURE enrol_student (
       p_reg_no      IN  VARCHAR2,
       p_first_name  IN  VARCHAR2,
@@ -40,7 +19,7 @@ CREATE OR REPLACE PACKAGE pkg_timebank AS
       p_city        IN  VARCHAR2 DEFAULT NULL,
       p_student_id  OUT NUMBER);
 
-  -- ---- the booking life cycle -------------------------------------
+  ------ the booking life cycle -------------------------------------
   PROCEDURE book_session (
       p_tutee_id      IN  NUMBER,
       p_tutor_id      IN  NUMBER,
@@ -180,20 +159,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
   END enrol_student;
 
 
-  -- =================================================================
-  --  book_session   -- the concurrency-critical procedure
-  --
-  --  Step 1 LOCKS the tutor's slot row.  If two tutees run this at the
-  --  same moment for the same slot, the second session blocks at the
-  --  FOR UPDATE until the first commits, then sees the booking the
-  --  first one made and is refused.  Without the lock both would read
-  --  "free", both would pass the check, and both would insert -- the
-  --  classic lost-update / double-booking anomaly from Module 4.
-  --
-  --  Oracle uses multiversion read consistency, so an ordinary SELECT
-  --  would NOT see the other session's uncommitted booking.  Explicit
-  --  row locking is the only way to serialise this.
-  -- =================================================================
+
   PROCEDURE book_session (
       p_tutee_id      IN  NUMBER,
       p_tutor_id      IN  NUMBER,

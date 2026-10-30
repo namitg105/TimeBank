@@ -105,13 +105,15 @@ SET    credits_held = 0
 WHERE  status IN ('COMPLETED','CANCELLED')
 AND    credits_held > 0;
 
-COMMIT;       -- keep this part
+COMMIT;
+-- keep this part
 
 DELETE FROM credit_policy
 WHERE  policy_key = 'LATE_CANCEL_SHARE'
 AND    NOT EXISTS (SELECT 1 FROM booking WHERE status = 'DISPUTED');
 
-ROLLBACK;     -- but put the policy row back
+ROLLBACK;
+-- but put the policy row back
 
 
 -- #####################################################################

@@ -610,7 +610,7 @@ front end, and anyone connecting with SQL Developer.
 
 ```bash
 cd sql
-sqlplus timebank/timebank@//localhost:1521/FREEPDB1 @run_all.sql
+sqlplus timebank/timebank@//localhost:1521/XE @run_all.sql
 ```
 
 Check two things:

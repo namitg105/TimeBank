@@ -36,17 +36,20 @@
 
     <!--
       Oracle's own JDBC driver, thin mode: pure Java, no Oracle Instant
-      Client to install. ucp11 is the connection pool.
+      Client to install. ucp is the connection pool.
+
+      ojdbc8 (19c) rather than ojdbc11 (23ai), because the database here
+      is XE 11g and the newer drivers are only certified from 19c on.
     -->
     <dependency>
       <groupId>com.oracle.database.jdbc</groupId>
-      <artifactId>ojdbc11</artifactId>
-      <version>23.5.0.24.07</version>
+      <artifactId>ojdbc8</artifactId>
+      <version>19.23.0.0</version>
     </dependency>
     <dependency>
       <groupId>com.oracle.database.jdbc</groupId>
-      <artifactId>ucp11</artifactId>
-      <version>23.5.0.24.07</version>
+      <artifactId>ucp</artifactId>
+      <version>19.23.0.0</version>
     </dependency>
   </dependencies>
 

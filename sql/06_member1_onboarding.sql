@@ -167,18 +167,7 @@ FROM   student s
 ORDER  BY role_in_system, s.student_id;
 
 
--- #####################################################################
---  Q3 -- NESTED (NON-CORRELATED) SUBQUERY, two levels deep
---  Students whose balance is below the campus average.
---
---  The inner query runs ONCE and produces a single number; every outer
---  row is then compared against it. That is what makes it
---  non-correlated -- the subquery never mentions the outer row, so
---  Oracle can evaluate it a single time.
---
---  Note it averages the per-student totals, not all the ledger rows.
---  Averaging rows would let one very active student dominate.
--- #####################################################################
+
 PROMPT
 PROMPT ===== M1-Q3 : balance below campus average (NESTED) =====
 

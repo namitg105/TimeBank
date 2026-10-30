@@ -77,12 +77,14 @@ INSERT INTO student VALUES (112,'25BEE3002','meera.pillai@vit.ac.in',  TRUNC(SYS
 --  Several students registered more than one number.
 -- =====================================================================
 INSERT INTO student_phone VALUES (101, '9840011221');
-INSERT INTO student_phone VALUES (101, '9003344556');   -- second number
+INSERT INTO student_phone VALUES (101, '9003344556');
+-- second number
 INSERT INTO student_phone VALUES (102, '9995512340');
 INSERT INTO student_phone VALUES (103, '9822114477');
 INSERT INTO student_phone VALUES (104, '9880077665');
 INSERT INTO student_phone VALUES (105, '9414455667');
-INSERT INTO student_phone VALUES (105, '9001122334');   -- second number
+INSERT INTO student_phone VALUES (105, '9001122334');
+-- second number
 INSERT INTO student_phone VALUES (106, '9789011223');
 INSERT INTO student_phone VALUES (107, '9765432109');
 INSERT INTO student_phone VALUES (108, '9701234567');
@@ -111,9 +113,11 @@ INSERT INTO tutor VALUES (111, 'BRONZE', 'VIT-GRD-1006');
 -- =====================================================================
 INSERT INTO tutee VALUES (102, 'INTERMEDIATE');
 INSERT INTO tutee VALUES (104, 'BASIC');
-INSERT INTO tutee VALUES (105, 'ADVANCED');        -- also a tutor
+INSERT INTO tutee VALUES (105, 'ADVANCED');
+-- also a tutor
 INSERT INTO tutee VALUES (106, 'INTERMEDIATE');
-INSERT INTO tutee VALUES (109, 'BASIC');           -- also a tutor
+INSERT INTO tutee VALUES (109, 'BASIC');
+-- also a tutor
 INSERT INTO tutee VALUES (110, 'ADVANCED');
 INSERT INTO tutee VALUES (112, 'INTERMEDIATE');
 -- Note: 108 Sara is in NEITHER subclass. That is the PARTIAL
@@ -145,15 +149,18 @@ INSERT INTO tutee_preftime VALUES (112, 'AFTERNOON');
 -- =====================================================================
 INSERT INTO tutor_skill VALUES (101, 101, 'EXPERT',     'S', TRUNC(SYSDATE)-300);
 INSERT INTO tutor_skill VALUES (101, 108, 'PROFICIENT', 'A', TRUNC(SYSDATE)-250);
-INSERT INTO tutor_skill VALUES (103, 101, 'PROFICIENT', 'A', TRUNC(SYSDATE)-280);  -- cross-dept
+INSERT INTO tutor_skill VALUES (103, 101, 'PROFICIENT', 'A', TRUNC(SYSDATE)-280);
+-- cross-dept
 INSERT INTO tutor_skill VALUES (103, 106, 'EXPERT',     'S', TRUNC(SYSDATE)-290);
 INSERT INTO tutor_skill VALUES (105, 103, 'EXPERT',     'S', TRUNC(SYSDATE)-270);
 INSERT INTO tutor_skill VALUES (105, 110, 'PROFICIENT', 'A', TRUNC(SYSDATE)-260);
 INSERT INTO tutor_skill VALUES (107, 102, 'EXPERT',     'S', TRUNC(SYSDATE)-240);
 INSERT INTO tutor_skill VALUES (107, 110, 'EXPERT',     'S', TRUNC(SYSDATE)-230);
 INSERT INTO tutor_skill VALUES (109, 101, 'EXPERT',     'S', TRUNC(SYSDATE)-220);
-INSERT INTO tutor_skill VALUES (109, 104, 'PROFICIENT', 'B', TRUNC(SYSDATE)-210);  -- cross-dept
-INSERT INTO tutor_skill VALUES (111, 105, 'PROFICIENT', 'A', TRUNC(SYSDATE)-200);  -- cross-dept
+INSERT INTO tutor_skill VALUES (109, 104, 'PROFICIENT', 'B', TRUNC(SYSDATE)-210);
+-- cross-dept
+INSERT INTO tutor_skill VALUES (111, 105, 'PROFICIENT', 'A', TRUNC(SYSDATE)-200);
+-- cross-dept
 INSERT INTO tutor_skill VALUES (111, 106, 'PROFICIENT', 'B', TRUNC(SYSDATE)-190);
 -- Subject 107 (Signals and Systems) and 109 (Management) have NO tutor.
 -- That is the partial participation of SUBJECT in "offers", and it is
@@ -175,7 +182,8 @@ INSERT INTO slot VALUES (107, 2, 'SAT', 10, 12);
 INSERT INTO slot VALUES (109, 1, 'TUE', 14, 16);
 INSERT INTO slot VALUES (109, 2, 'THU', 10, 12);
 INSERT INTO slot VALUES (111, 1, 'FRI', 16, 18);
-INSERT INTO slot VALUES (111, 2, 'SAT', 14, 16);   -- never booked
+INSERT INTO slot VALUES (111, 2, 'SAT', 14, 16);
+-- never booked
 
 
 -- =====================================================================
@@ -341,7 +349,8 @@ SELECT booking_id,
 FROM   (SELECT booking_id, ROW_NUMBER() OVER (ORDER BY booking_id) AS rn
         FROM   booking
         WHERE  status = 'COMPLETED')
-WHERE  rn IN (1, 2, 3, 4, 5, 7);     -- booking 6 got no tutor review
+WHERE  rn IN (1, 2, 3, 4, 5, 7);
+-- booking 6 got no tutor review
 
 COMMIT;
 

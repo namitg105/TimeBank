@@ -3,7 +3,7 @@
 --
 --  Run this ONE file to build the whole database from nothing:
 --
---     sqlplus timebank/timebank@//localhost:1521/FREEPDB1 @run_all.sql
+--     sqlplus timebank/timebank@//localhost:1521/XE @run_all.sql
 --
 --  or open it in SQL Developer and press F5 (Run Script).
 --

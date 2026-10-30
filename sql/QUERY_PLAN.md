@@ -145,7 +145,7 @@ commits. Screenshot it.
 ## Running order
 
 ```bash
-sqlplus timebank/timebank@//localhost:1521/FREEPDB1
+sqlplus timebank/timebank@//localhost:1521/XE
 
 @run_all.sql                        -- builds the database (run once)
 

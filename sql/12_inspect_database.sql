@@ -205,9 +205,13 @@ PROMPT ============================================================
 PROMPT  6. CHECK CONSTRAINTS
 PROMPT ============================================================
 
+-- NOTE FOR ORACLE 11g: the column is SEARCH_CONDITION, of type LONG.
+-- (12c added SEARCH_CONDITION_VC, a VARCHAR2 copy that is easier to
+-- work with. On 11g that column does not exist.)
+-- SET LONG at the top of this file is what makes a LONG print in full.
 SELECT table_name,
        constraint_name,
-       search_condition_vc    AS condition
+       search_condition       AS condition
 FROM   user_constraints
 WHERE  constraint_type = 'C'
 AND    constraint_name NOT LIKE 'SYS\_%' ESCAPE '\'

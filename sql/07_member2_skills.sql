@@ -40,7 +40,8 @@ VALUES (112, 'BRONZE', 'VIT-GRD-1007');
 
 INSERT INTO tutor_skill (tutor_id, subject_id, competency_level,
                          grade_proof, certified_on)
-VALUES (112, 107, 'EXPERT', 'S', TRUNC (SYSDATE));   -- Signals & Systems
+VALUES (112, 107, 'EXPERT', 'S', TRUNC (SYSDATE));
+-- Signals & Systems
 
 INSERT INTO slot (tutor_id, slot_no, day_of_week, start_time, end_time)
 VALUES (112, 1, 'TUE', 16, 18);

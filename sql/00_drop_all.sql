@@ -17,7 +17,8 @@ BEGIN
       WHERE  table_name IN (
                'CREDIT_TXN','DISPUTE','FEEDBACK','BOOKING','SLOT',
                'TUTOR_SKILL','TUTEE_PREFTIME','TUTEE','TUTOR',
-               'STUDENT_PHONE','SUBJECT','STUDENT','DEPARTMENT','ADMIN')
+               'STUDENT_PHONE','SUBJECT','STUDENT','DEPARTMENT','ADMIN',
+               'CREDIT_POLICY')
   ) LOOP
     EXECUTE IMMEDIATE 'DROP TABLE ' || r.table_name || ' CASCADE CONSTRAINTS PURGE';
     DBMS_OUTPUT.PUT_LINE('Dropped table  : ' || r.table_name);

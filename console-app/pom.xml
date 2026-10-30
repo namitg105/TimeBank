@@ -21,7 +21,12 @@
     <!--
       Oracle's own JDBC driver.
 
-      ojdbc11 is the build for JDK 11 and later. It is the THIN driver:
+      ojdbc8 is the 19c driver line. It is used instead of the newer
+      ojdbc11 because this project runs against Oracle XE 11g (11.2),
+      and the 21c/23ai drivers are only certified from 19c onwards.
+      ojdbc8 is the last line that officially supports 11.2.
+
+      It is the THIN driver:
       pure Java, speaks Oracle's wire protocol directly, and needs no
       Oracle Instant Client installed on the machine. That is why the
       whole project runs from a single `mvn` command.
@@ -32,13 +37,13 @@
     -->
     <dependency>
       <groupId>com.oracle.database.jdbc</groupId>
-      <artifactId>ojdbc11</artifactId>
-      <version>23.5.0.24.07</version>
+      <artifactId>ojdbc8</artifactId>
+      <version>19.23.0.0</version>
     </dependency>
     <dependency>
       <groupId>com.oracle.database.jdbc</groupId>
-      <artifactId>ucp11</artifactId>
-      <version>23.5.0.24.07</version>
+      <artifactId>ucp</artifactId>
+      <version>19.23.0.0</version>
     </dependency>
   </dependencies>
 
