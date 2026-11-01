@@ -8,29 +8,35 @@ import 'core/theme/app_theme.dart';
 
 import 'features/auth/presentation/pages/welcome_page.dart';
 import 'features/auth/session.dart';
-import 'features/profile/presentation/pages/profile_page.dart';
-import 'features/skills/presentation/pages/skills_page.dart';
+import 'features/feedback/presentation/pages/disputes_page.dart';
+import 'features/feedback/presentation/pages/reviews_page.dart';
 import 'features/students/presentation/bloc/student_bloc.dart';
-import 'features/students/presentation/pages/students_page.dart';
 
 /// TimeBank — peer tutoring credit exchange.
 ///
 /// SCOPE OF THIS BUILD
-/// This app covers two of the five modules the schema supports:
+/// This branch covers ONE of the five modules the schema supports:
 ///
-///   Member 1  Onboarding and profiles
-///             STUDENT, STUDENT_PHONE, TUTOR, TUTEE, TUTEE_PREFTIME,
-///             DEPARTMENT. The overlapping-partial specialization,
-///             derived attributes, and soft delete.
+///   Member 5  Feedback, disputes and fraud
+///             FEEDBACK, DISPUTE, ADMIN.
 ///
-///   Member 2  Skills and availability
-///             SUBJECT, TUTOR_SKILL, SLOT. The M:N relationship,
-///             weak entities with partial keys, and cross-department
-///             tutoring.
+///             Two weak entities with different kinds of partial key:
+///             FEEDBACK is keyed on (booking_id, reviewer_role), where
+///             a ROLE tells the two reviews of one session apart;
+///             DISPUTE is keyed on (booking_id, dispute_no), where a
+///             COUNTER tells repeated complaints apart.
 ///
-/// Bookings, the credit ledger, feedback and disputes exist in the
+///             The self join — FEEDBACK joined to itself twice, the
+///             copies told apart by reviewer_role, both joins OUTER
+///             because many sessions get only one review.
+///
+///             Collusion detection — pairs who tutor each other in
+///             circles, netting to zero credits while collecting a
+///             five-star review every time.
+///
+/// Onboarding, skills, bookings and the credit ledger exist in the
 /// database and in sql/ — they are other members' modules — but they
-/// have no screens here.
+/// have no screens on this branch.
 ///
 /// ARCHITECTURE
 ///
@@ -92,8 +98,7 @@ class TimeBankApp extends StatelessWidget {
 
 /// What a signed-in student sees.
 ///
-/// Two tabs, one per module: their own profile and role (Member 1), and
-/// the subjects and availability they can teach (Member 2).
+/// Reviews of sessions they took part in, and any complaints raised.
 class StudentShell extends StatefulWidget {
   const StudentShell({super.key});
 
@@ -110,8 +115,8 @@ class _StudentShellState extends State<StudentShell> {
       body: IndexedStack(
         index: _index,
         children: const [
-          ProfilePage(),
-          SkillsPage(),
+          ReviewsPage(),
+          DisputesPage(),
         ],
       ),
       bottomNavigationBar: _Nav(
@@ -119,14 +124,14 @@ class _StudentShellState extends State<StudentShell> {
         onTap: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'My profile',
+            icon: Icon(Icons.rate_review_outlined),
+            selectedIcon: Icon(Icons.rate_review),
+            label: 'Reviews',
           ),
           NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book),
-            label: 'Skills',
+            icon: Icon(Icons.gavel_outlined),
+            selectedIcon: Icon(Icons.gavel),
+            label: 'Disputes',
           ),
         ],
       ),
@@ -140,9 +145,8 @@ class _StudentShellState extends State<StudentShell> {
 
 /// What the administrator sees.
 ///
-/// The same two modules, from the other side: the whole student
-/// directory with onboarding and account closure (Member 1), and the
-/// subject catalogue with the skill matrix (Member 2).
+/// The moderator's side: the complaint queue, and the pairs the
+/// collusion detector has flagged.
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
 
@@ -159,8 +163,8 @@ class _AdminShellState extends State<AdminShell> {
       body: IndexedStack(
         index: _index,
         children: const [
-          StudentsPage(),
-          SkillsPage(),
+          DisputesPage(),
+          ReviewsPage(),
         ],
       ),
       bottomNavigationBar: _Nav(
@@ -168,14 +172,14 @@ class _AdminShellState extends State<AdminShell> {
         onTap: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'Directory',
+            icon: Icon(Icons.gavel_outlined),
+            selectedIcon: Icon(Icons.gavel),
+            label: 'Disputes',
           ),
           NavigationDestination(
-            icon: Icon(Icons.school_outlined),
-            selectedIcon: Icon(Icons.school),
-            label: 'Subjects',
+            icon: Icon(Icons.rate_review_outlined),
+            selectedIcon: Icon(Icons.rate_review),
+            label: 'Reviews',
           ),
         ],
       ),
