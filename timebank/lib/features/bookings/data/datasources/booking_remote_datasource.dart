@@ -5,6 +5,10 @@ abstract interface class BookingRemoteDataSource {
   Future<List<BookingModel>> getAll({String? status});
   Future<List<BookingModel>> forStudent(int studentId);
   Future<(int, String)> book(Map<String, dynamic> body);
+
+  /// Enrols the student into TUTOR or TUTEE if needed, then books.
+  /// Returns the new role label as well, e.g. 'BOTH'.
+  Future<(int, String, String)> bookGuided(Map<String, dynamic> body);
   Future<String> checkIn(int bookingId, String code);
   Future<String> confirm(int bookingId, String role);
   Future<String> cancel(int bookingId, String byRole);
@@ -37,6 +41,17 @@ class BookingRemoteDataSourceImpl implements BookingRemoteDataSource {
     return (
       (data['bookingId'] as num).toInt(),
       data['sessionCode']?.toString() ?? '',
+    );
+  }
+
+  @override
+  Future<(int, String, String)> bookGuided(Map<String, dynamic> body) async {
+    final data =
+        await client.post('/api/bookings/guided', body: body) as Map;
+    return (
+      (data['bookingId'] as num).toInt(),
+      data['sessionCode']?.toString() ?? '',
+      data['roleAfter']?.toString() ?? '',
     );
   }
 

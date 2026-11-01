@@ -29,6 +29,13 @@ abstract interface class BookingRepository {
     required double durationHours,
     required String mode,
     required String venue,
+    // When [intent] is set the guided endpoint is used instead: the
+    // student is enrolled into TUTOR or TUTEE first if they are not
+    // already in it. Nothing is ever removed, because the
+    // specialization is overlapping -- choosing to teach does not
+    // stop you learning.
+    String? intent,      // 'LEARN' or 'TEACH'
+    int? studentId,      // who is doing the booking
   });
 
   Future<Either<Failure, String>> checkIn(int bookingId, String sessionCode);

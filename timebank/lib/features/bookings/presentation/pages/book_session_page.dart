@@ -28,6 +28,15 @@ class _BookSessionPageState extends State<BookSessionPage> {
   final _slotNo = TextEditingController(text: '1');
   final _venue = TextEditingController();
 
+  /// 'LEARN' = the person booking is the tutee.
+  /// 'TEACH' = the person booking is the tutor.
+  ///
+  /// Whichever they pick, the API enrols them into that subclass if
+  /// they are not already in it -- and leaves the other one alone,
+  /// because the specialization is OVERLAPPING. Pick LEARN today and
+  /// TEACH next week and the Students screen shows you as BOTH.
+  String _intent = 'LEARN';
+
   int _subjectId = 101;
   DateTime? _date;
   double _startTime = 16;
@@ -88,15 +97,56 @@ class _BookSessionPageState extends State<BookSessionPage> {
                 tint: AppColors.accent,
               ),
 
+              const SectionLabel('Are you learning or teaching?'),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'LEARN',
+                    label: Text('I am learning'),
+                    icon: Icon(Icons.school_outlined, size: 18),
+                  ),
+                  ButtonSegment(
+                    value: 'TEACH',
+                    label: Text('I am teaching'),
+                    icon: Icon(Icons.co_present_outlined, size: 18),
+                  ),
+                ],
+                selected: {_intent},
+                showSelectedIcon: false,
+                onSelectionChanged: (set) =>
+                    setState(() => _intent = set.first),
+              ),
+              const SizedBox(height: 8),
+              InfoBanner(
+                _intent == 'LEARN'
+                    ? 'You will be added to the TUTEE table if you are not '
+                      'already in it. You stay a tutor if you were one -- '
+                      'the specialization is overlapping, so nothing is '
+                      'taken away.'
+                    : 'You will be added to the TUTOR table if you are not '
+                      'already in it, with a BRONZE badge and a skill row '
+                      'for the subject below. You stay a tutee if you were '
+                      'one.',
+                icon: Icons.account_tree_outlined,
+              ),
+
               const SectionLabel('Who'),
               Row(
                 children: [
                   Expanded(
-                    child: _numField(_tuteeId, 'Tutee id', hint: '102'),
+                    child: _numField(
+                      _intent == 'LEARN' ? _tuteeId : _tutorId,
+                      'Your student id',
+                      hint: '1003',
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _numField(_tutorId, 'Tutor id', hint: '101'),
+                    child: _numField(
+                      _intent == 'LEARN' ? _tutorId : _tuteeId,
+                      _intent == 'LEARN' ? "Tutor's id" : "Tutee's id",
+                      hint: _intent == 'LEARN' ? '101' : '102',
+                    ),
                   ),
                 ],
               ),
@@ -230,6 +280,10 @@ class _BookSessionPageState extends State<BookSessionPage> {
             durationHours: _duration,
             mode: _mode,
             venue: _venue.text.trim(),
+            intent: _intent,
+            studentId: int.parse(
+              (_intent == 'LEARN' ? _tuteeId : _tutorId).text.trim(),
+            ),
           ),
         ));
   }

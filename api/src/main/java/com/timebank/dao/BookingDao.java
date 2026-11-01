@@ -79,6 +79,48 @@ public class BookingDao {
                 SqlLog.called("booking " + r.bookingId()
                             + " created, session code " + r.sessionCode()
                             + ", credits now in escrow, COMMIT", t0);
+
+                SqlLog.inside("PKG_TIMEBANK.BOOK_SESSION", """
+                        -- 1. lock the slot so two tutees cannot take it
+                        SELECT tutor_id INTO v_x FROM slot
+                        WHERE  tutor_id = p_tutor_id AND slot_no = p_slot_no
+                        FOR UPDATE;
+
+                        -- 2. is that hour already taken?
+                        SELECT COUNT(*) INTO v_clash FROM booking
+                        WHERE  tutor_id = p_tutor_id
+                        AND    sched_date = p_sched_date
+                        AND    status IN ('REQUESTED','CONFIRMED')
+                        AND    p_start_time < sched_start_time + duration_hours
+                        AND    sched_start_time < p_start_time + p_duration;
+
+                        -- 3. weekly cap for this pair (anti-collusion)
+                        SELECT COUNT(*) INTO v_pair FROM booking ...
+
+                        -- 4. the booking itself
+                        INSERT INTO booking (...) VALUES (seq_booking.NEXTVAL, ...);
+
+                        -- 5. move the credits into escrow: ONE negative row
+                        --    against the TUTEE. The tutor is paid only when
+                        --    both sides confirm.
+                        post_txn (p_tutee_id, 'HOLD', -p_duration, ...);
+                        """);
+
+                Database.showAfter(
+                    "INSERTED into BOOKING:",
+                    "SELECT booking_id, status, sched_date, sched_start_time, "
+                  + "duration_hours, credits_held, tutee_id, tutor_id "
+                  + "FROM booking WHERE booking_id = ?",
+                    r.bookingId());
+
+                Database.showAfter(
+                    "INSERTED into CREDIT_TXN -- the escrow HOLD. Negative, "
+                  + "against the TUTEE. The tutor is paid only on completion:",
+                    "SELECT txn_id, student_id, txn_type, amount, "
+                  + "balance_snapshot, remarks FROM credit_txn "
+                  + "WHERE booking_id = ? ORDER BY txn_id",
+                    r.bookingId());
+
                 return r;
             }
         } catch (SQLException e) {
@@ -292,6 +334,20 @@ public class BookingDao {
                 cs.execute();
                 c.commit();
                 SqlLog.called("accepted, COMMIT", t0);
+
+                Database.showAfter(
+                    "BOOKING " + id + " now reads:",
+                    "SELECT booking_id, status, confirm_by_tutor, "
+                  + "confirm_by_tutee, check_in_at, credits_held "
+                  + "FROM booking WHERE booking_id = ?",
+                    id);
+
+                Database.showAfter(
+                    "CREDIT_TXN rows for this session:",
+                    "SELECT txn_id, student_id, txn_type, amount, "
+                  + "balance_snapshot FROM credit_txn "
+                  + "WHERE booking_id = ? ORDER BY txn_id",
+                    id);
             }
         } catch (SQLException e) {
             Database.silentRollback(c);

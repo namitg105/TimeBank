@@ -28,8 +28,13 @@ class BookingRepositoryImpl implements BookingRepository {
     required double durationHours,
     required String mode,
     required String venue,
-  }) =>
-      _guard(() => remote.book({
+    String? intent,
+    int? studentId,
+  }) {
+    // No intent: the plain endpoint, which assumes both people are
+    // already in the right subclass tables.
+    if (intent == null || studentId == null) {
+      return _guard(() => remote.book({
             'tuteeId': tuteeId,
             'tutorId': tutorId,
             'subjectId': subjectId,
@@ -40,6 +45,29 @@ class BookingRepositoryImpl implements BookingRepository {
             'mode': mode,
             'venue': venue,
           }));
+    }
+
+    // With an intent, the API enrols the student into TUTOR or TUTEE
+    // first if they are not already there, then books. The counterpart
+    // is whoever is on the other side of the session.
+    final counterpartId = intent == 'LEARN' ? tutorId : tuteeId;
+
+    return _guard(() async {
+      final (id, code, _) = await remote.bookGuided({
+        'studentId': studentId,
+        'intent': intent,
+        'counterpartId': counterpartId,
+        'subjectId': subjectId,
+        'slotNo': slotNo,
+        'schedDate': _isoDate(schedDate),
+        'startTime': startTime,
+        'durationHours': durationHours,
+        'mode': mode,
+        'venue': venue,
+      });
+      return (id, code);
+    });
+  }
 
   @override
   Future<Either<Failure, String>> checkIn(int bookingId, String sessionCode) =>

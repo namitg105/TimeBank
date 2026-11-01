@@ -33,3 +33,8 @@ Thumbs.db
 # ---- Transfer leftovers ----
 _timebank_payload.zip
 *.bak
+
+# Generated SQL*Plus transcripts -- regenerate with rerun.sql
+demo_output.txt
+sql/demo_output.txt
+out_member1.txt

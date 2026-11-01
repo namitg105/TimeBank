@@ -146,6 +146,25 @@ public class RoleDao {
             }
 
             c.commit();
+
+            Database.showAfter(
+                "INSERTED into TUTOR -- and note the student is NOT removed "
+              + "from TUTEE. Overlapping means both rows may coexist:",
+                "SELECT s.student_id, s.first_name, "
+              + "NVL(t.badge_level,'-') AS tutor_badge, "
+              + "NVL(e.academic_need_tier,'-') AS tutee_tier "
+              + "FROM student s "
+              + "LEFT JOIN tutor t ON t.student_id = s.student_id "
+              + "LEFT JOIN tutee e ON e.student_id = s.student_id "
+              + "WHERE s.student_id = ?",
+                studentId);
+
+            Database.showAfter(
+                "TUTOR_SKILL now holds, for this tutor:",
+                "SELECT tutor_id, subject_id, competency_level, grade_proof "
+              + "FROM tutor_skill WHERE tutor_id = ? ORDER BY subject_id",
+                studentId);
+
         } catch (SQLException e) {
             Database.silentRollback(c);
             SqlLog.failed(Database.explain(e), t0);
@@ -293,6 +312,26 @@ public class RoleDao {
             }
 
             c.commit();
+
+            Database.showAfter(
+                "INSERTED into TUTEE -- and the TUTOR row, if there was one, "
+              + "is still there. That is what overlapping means:",
+                "SELECT s.student_id, s.first_name, "
+              + "NVL(t.badge_level,'-') AS tutor_badge, "
+              + "NVL(e.academic_need_tier,'-') AS tutee_tier "
+              + "FROM student s "
+              + "LEFT JOIN tutor t ON t.student_id = s.student_id "
+              + "LEFT JOIN tutee e ON e.student_id = s.student_id "
+              + "WHERE s.student_id = ?",
+                studentId);
+
+            Database.showAfter(
+                "TUTEE_PREFTIME (PreferredTime was a MULTIVALUED attribute, "
+              + "so it has its own table):",
+                "SELECT student_id, preferred_timeband FROM tutee_preftime "
+              + "WHERE student_id = ? ORDER BY preferred_timeband",
+                studentId);
+
         } catch (SQLException e) {
             Database.silentRollback(c);
             SqlLog.failed(Database.explain(e), t0);

@@ -83,6 +83,41 @@ public class StudentDao {
                 c.commit();
                 SqlLog.called("student " + newId
                             + " created, starter credits posted, COMMIT", t0);
+
+                SqlLog.inside("PKG_TIMEBANK.ENROL_STUDENT", """
+                        p_student_id := seq_student.NEXTVAL;
+
+                        INSERT INTO student (
+                            student_id, reg_no, first_name, last_name, email,
+                            join_date, account_status, block, room_no, city,
+                            dob, dept_id)
+                        VALUES (
+                            p_student_id, p_reg_no, p_first_name, p_last_name,
+                            p_email, SYSDATE, 'ACTIVE', p_block, p_room_no,
+                            p_city, p_dob, p_dept_id);
+
+                        -- the starter grant, in the SAME transaction
+                        INSERT INTO credit_txn (
+                            txn_id, txn_type, amount, balance_snapshot,
+                            remarks, student_id, booking_id)
+                        VALUES (
+                            seq_txn.NEXTVAL, 'GRANT', 3.0, 3.0,
+                            'Starter grant on registration', p_student_id, NULL);
+                        """);
+
+                Database.showAfter(
+                    "INSERTED into STUDENT:",
+                    "SELECT student_id, reg_no, first_name, last_name, "
+                  + "account_status FROM student WHERE student_id = ?",
+                    newId);
+
+                Database.showAfter(
+                    "INSERTED into CREDIT_TXN (same transaction -- STUDENT has "
+                  + "TOTAL participation in posts):",
+                    "SELECT txn_id, txn_type, amount, balance_snapshot, remarks "
+                  + "FROM credit_txn WHERE student_id = ?",
+                    newId);
+
                 return newId;
             }
         } catch (SQLException e) {
@@ -110,6 +145,12 @@ public class StudentDao {
                 int n = ps.executeUpdate();
                 c.commit();
                 SqlLog.changed(n, t0);
+
+                Database.showAfter(
+                    "STUDENT_PHONE now holds, for student " + studentId + ":",
+                    "SELECT student_id, phone_no FROM student_phone "
+                  + "WHERE student_id = ? ORDER BY phone_no",
+                    studentId);
             }
         } catch (SQLException e) {
             Database.silentRollback(c);
@@ -155,6 +196,19 @@ public class StudentDao {
                 int rows = ps.executeUpdate();
                 c.commit();
                 SqlLog.changed(rows, t0);
+
+                Database.showAfter(
+                    "UPDATED -- the row survives, only the flag moved. Their "
+                  + "bookings and ledger rows are untouched:",
+                    "SELECT s.student_id, s.first_name, s.account_status, "
+                  + "(SELECT COUNT(*) FROM booking b "
+                  + " WHERE b.tutee_id = s.student_id "
+                  + "    OR b.tutor_id = s.student_id) AS sessions_kept, "
+                  + "(SELECT COUNT(*) FROM credit_txn t "
+                  + " WHERE t.student_id = s.student_id) AS ledger_rows_kept "
+                  + "FROM student s WHERE s.student_id = ?",
+                    studentId);
+
                 return rows;
             }
         } catch (SQLException e) {
@@ -191,6 +245,14 @@ public class StudentDao {
                 int rows = ps.executeUpdate();
                 c.commit();
                 SqlLog.changed(rows, t0);
+
+                Database.showAfter(
+                    "DELETED -- STUDENT_PHONE now holds, for student "
+                  + studentId + ":",
+                    "SELECT student_id, phone_no FROM student_phone "
+                  + "WHERE student_id = ? ORDER BY phone_no",
+                    studentId);
+
                 return rows;
             }
         } catch (SQLException e) {

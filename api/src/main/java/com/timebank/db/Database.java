@@ -5,6 +5,8 @@ import oracle.ucp.jdbc.PoolDataSourceFactory;
 
 import java.io.InputStream;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Properties;
 
@@ -77,6 +79,34 @@ public final class Database {
         Connection c = pool.getConnection();
         c.setAutoCommit(false);
         return c;
+    }
+
+    /**
+     * Runs a small SELECT and prints the result, to show what a write
+     * actually did.
+     *
+     * <p>Called after the commit, so the rows printed are the rows any
+     * other session would now see. The query is deliberately narrow —
+     * the row just touched, not a table scan — because the point is to
+     * make one change visible, not to dump data.
+     *
+     * <p>Failures here are swallowed. This is commentary on work that
+     * has already succeeded; it must never turn a completed write into
+     * an error the user sees.
+     */
+    public static void showAfter(String title, String sql, Object... binds) {
+        try (Connection c = get();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+
+            for (int i = 0; i < binds.length; i++) {
+                ps.setObject(i + 1, binds[i]);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                SqlLog.after(title, rs);
+            }
+        } catch (SQLException e) {
+            SqlLog.note("(could not read back: " + e.getMessage() + ")");
+        }
     }
 
     /** Rolls back quietly — used in catch blocks where the real error matters more. */

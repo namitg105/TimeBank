@@ -58,6 +58,8 @@ final class BookSession implements UseCase<(int, String), BookSessionParams> {
       durationHours: p.durationHours,
       mode: p.mode,
       venue: p.venue,
+      intent: p.intent,
+      studentId: p.studentId,
     );
   }
 }
@@ -73,6 +75,17 @@ final class BookSessionParams extends Equatable {
   final String mode;
   final String venue;
 
+  /// 'LEARN' or 'TEACH', or null to skip enrolment entirely.
+  ///
+  /// Set from the role picker on the booking form. When present the
+  /// student is added to TUTEE or TUTOR first if they are not already
+  /// in it -- and never removed from the other one, because the
+  /// specialization is overlapping.
+  final String? intent;
+
+  /// The student doing the booking, whose role may need creating.
+  final int? studentId;
+
   const BookSessionParams({
     required this.tuteeId,
     required this.tutorId,
@@ -83,11 +96,13 @@ final class BookSessionParams extends Equatable {
     required this.durationHours,
     required this.mode,
     required this.venue,
+    this.intent,
+    this.studentId,
   });
 
   @override
   List<Object?> get props =>
-      [tuteeId, tutorId, subjectId, slotNo, schedDate, startTime];
+      [tuteeId, tutorId, subjectId, slotNo, schedDate, startTime, intent];
 }
 
 /// The tutor enters the code the tutee was given.

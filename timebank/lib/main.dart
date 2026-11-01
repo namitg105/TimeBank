@@ -6,6 +6,7 @@ import 'core/di/injection.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 
+import 'features/admin/presentation/pages/admin_page.dart';
 import 'features/bookings/presentation/bloc/booking_bloc.dart';
 import 'features/bookings/presentation/pages/bookings_page.dart';
 import 'features/ledger/presentation/bloc/ledger_bloc.dart';
@@ -37,12 +38,14 @@ void main() async {
 
   // The app is dark only. Forcing the status bar to match stops a white
   // strip appearing above a black screen on Android.
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: AppColors.surface,
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.surface,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
 
   await initDependencies();
 
@@ -91,6 +94,7 @@ class _AppShellState extends State<AppShell> {
     BookingsPage(),
     LedgerPage(),
     AuditPage(),
+    AdminPage(),
   ];
 
   @override
@@ -126,6 +130,11 @@ class _AppShellState extends State<AppShell> {
               icon: Icon(Icons.verified_outlined),
               selectedIcon: Icon(Icons.verified),
               label: 'Audit',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.admin_panel_settings_outlined),
+              selectedIcon: Icon(Icons.admin_panel_settings),
+              label: 'Admin',
             ),
           ],
         ),

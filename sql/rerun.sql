@@ -46,7 +46,7 @@ PROMPT #####################################################
 PROMPT #  STEP 2 of 2  --  the 45 queries, five members    #
 PROMPT #####################################################
 
-@@06_member1_onboarding.sql
+@@onboarding.sql
 @@07_member2_skills.sql
 @@08_member3_booking.sql
 @@09_member4_credit.sql

@@ -1,7 +1,12 @@
 package com.timebank.db;
 
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Prints every statement the application sends to Oracle, to the console.
@@ -89,6 +94,39 @@ public final class SqlLog {
                startNanos);
     }
 
+    /**
+     * Shows the statements that run INSIDE a PL/SQL package.
+     *
+     * <p>When the application calls a stored procedure, the only thing
+     * that crosses the JDBC connection is the {@code BEGIN pkg...; END;}
+     * call. The INSERTs and UPDATEs it performs are compiled into the
+     * database and never travel back, so a wire trace alone makes it
+     * look as though nothing was written.
+     *
+     * <p>This prints them so the work is visible. It is a quotation from
+     * the package source, clearly labelled as such — not something the
+     * application sent.
+     */
+    public static void inside(String procedure, String sql) {
+        if (!enabled) {
+            return;
+        }
+        StringBuilder out = new StringBuilder();
+        out.append("\n  These statements ran INSIDE ").append(procedure)
+           .append(",\n  compiled in the database. Java never sent them:\n\n");
+        for (String line : sql.strip().split("\n")) {
+            out.append("      ").append(line).append('\n');
+        }
+        System.out.print(out);
+    }
+
+    /** A one-line aside, used when a read-back could not be done. */
+    public static void note(String text) {
+        if (enabled) {
+            System.out.println("    " + text);
+        }
+    }
+
     /** Reports a PL/SQL call, which has no row count of its own. */
     public static void called(String what, long startNanos) {
         finish(what, startNanos);
@@ -111,6 +149,83 @@ public final class SqlLog {
         double ms = (System.nanoTime() - startNanos) / 1_000_000.0;
         System.out.printf("%n  ->  %s in %.1f ms%n%s%n",
                 outcome, ms, RULE);
+    }
+
+    /**
+     * Prints the rows a statement actually left behind.
+     *
+     * <p>A row count says "3 rows changed". This says WHICH rows and
+     * what is now in them, which is the thing worth seeing: the new
+     * student and the credit row created alongside her, the booking
+     * whose status just moved, the ledger entry that recorded it.
+     *
+     * <p>Called after the write has committed, so what prints is what
+     * another session would see — not an uncommitted guess.
+     */
+    public static void after(String title, ResultSet rs) throws SQLException {
+        if (!enabled) {
+            return;
+        }
+
+        ResultSetMetaData meta = rs.getMetaData();
+        int cols = meta.getColumnCount();
+
+        List<String> headers = new ArrayList<>();
+        for (int i = 1; i <= cols; i++) {
+            headers.add(meta.getColumnLabel(i));
+        }
+
+        List<List<String>> rows = new ArrayList<>();
+        while (rs.next()) {
+            List<String> row = new ArrayList<>();
+            for (int i = 1; i <= cols; i++) {
+                Object v = rs.getObject(i);
+                row.add(v == null ? "-" : String.valueOf(v));
+            }
+            rows.add(row);
+        }
+
+        StringBuilder out = new StringBuilder();
+        out.append("\n  ").append(title).append('\n');
+
+        if (rows.isEmpty()) {
+            out.append("    (no rows)\n");
+            System.out.print(out);
+            return;
+        }
+
+        int[] width = new int[cols];
+        for (int i = 0; i < cols; i++) {
+            width[i] = headers.get(i).length();
+            for (List<String> row : rows) {
+                width[i] = Math.max(width[i], Math.min(row.get(i).length(), 38));
+            }
+        }
+
+        out.append("    ");
+        for (int i = 0; i < cols; i++) {
+            out.append(pad(headers.get(i), width[i])).append("  ");
+        }
+        out.append('\n').append("    ");
+        for (int i = 0; i < cols; i++) {
+            out.append("-".repeat(width[i])).append("  ");
+        }
+        out.append('\n');
+
+        for (List<String> row : rows) {
+            out.append("    ");
+            for (int i = 0; i < cols; i++) {
+                out.append(pad(row.get(i), width[i])).append("  ");
+            }
+            out.append('\n');
+        }
+
+        System.out.print(out);
+    }
+
+    private static String pad(String s, int w) {
+        String t = s.length() > 38 ? s.substring(0, 35) + "..." : s;
+        return t.length() >= w ? t : t + " ".repeat(w - t.length());
     }
 
     private static String render(Object v) {

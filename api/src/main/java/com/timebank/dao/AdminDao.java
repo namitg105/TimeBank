@@ -151,6 +151,13 @@ public class AdminDao {
                 int n = ps.executeUpdate();
                 c.commit();
                 SqlLog.changed(n, t0);
+
+                Database.showAfter(
+                    "DISPUTE now reads:",
+                    "SELECT booking_id, dispute_no, status, resolved_by "
+                  + "FROM dispute WHERE booking_id = ? AND dispute_no = ?",
+                    bookingId, disputeNo);
+
                 return n;
             }
         } catch (SQLException e) {
@@ -198,6 +205,21 @@ public class AdminDao {
                 cs.execute();
                 c.commit();
                 SqlLog.called("resolved in favour of " + inFavour + ", COMMIT", t0);
+
+                Database.showAfter(
+                    "DISPUTE is now closed, and names who closed it -- "
+                  + "CHK_DP_RESOLVED would refuse the row otherwise:",
+                    "SELECT booking_id, dispute_no, status, resolved_by, "
+                  + "resolution_note FROM dispute "
+                  + "WHERE booking_id = ? AND dispute_no = ?",
+                    bookingId, disputeNo);
+
+                Database.showAfter(
+                    "CREDIT_TXN rows this ruling wrote (a PENALTY is the only "
+                  + "way credits ever LEAVE the economy):",
+                    "SELECT txn_id, student_id, txn_type, amount, remarks "
+                  + "FROM credit_txn WHERE booking_id = ? ORDER BY txn_id",
+                    bookingId);
             }
         } catch (SQLException e) {
             Database.silentRollback(c);

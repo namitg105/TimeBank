@@ -78,6 +78,15 @@ public class LedgerDao {
                 }
                 c.commit();
                 SqlLog.changed(n, t0);
+
+                Database.showAfter(
+                    "INSERTED into CREDIT_TXN (append-only -- the only way to "
+                  + "correct this later is another row, never an edit):",
+                    "SELECT txn_id, student_id, txn_type, amount, "
+                  + "balance_snapshot, remarks FROM credit_txn "
+                  + "WHERE txn_id = ?",
+                    id);
+
                 return id;
             }
         } catch (SQLException e) {
