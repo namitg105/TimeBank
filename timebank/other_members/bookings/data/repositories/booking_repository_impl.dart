@@ -1,6 +1,4 @@
 import 'package:fpdart/fpdart.dart';
-import '../../../../core/error/exceptions.dart';
-import '../../../../core/error/failure.dart';
 import '../../domain/entities/booking.dart';
 import '../../domain/repositories/booking_repository.dart';
 import '../datasources/booking_remote_datasource.dart';

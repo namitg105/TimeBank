@@ -1,4 +1,5 @@
-import '../../../../core/network/api_client.dart';
+import 'package:timebank/core/network/api_client.dart';
+
 import '../models/booking_model.dart';
 
 abstract interface class BookingRemoteDataSource {

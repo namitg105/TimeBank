@@ -65,8 +65,7 @@ public class RoleDao {
                        LEFT JOIN tutee e ON e.student_id = s.student_id
                 WHERE  s.student_id = ?""";
 
-        long t0 = SqlLog.q("RoleDao.roleOf  (the two LEFT JOINs of the"
-                         + " overlapping, partial specialization)", sql, studentId);
+        long t0 = SqlLog.q("MEMBER 1  .  Which roles does this student hold?", sql, studentId);
 
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql)) {
@@ -116,9 +115,7 @@ public class RoleDao {
                     tutor_id, subject_id, competency_level, grade_proof, certified_on)
                 VALUES (?, ?, ?, ?, SYSDATE)""";
 
-        long t0 = SqlLog.q("RoleDao.becomeTutor  (subclass enrolment; badge"
-                         + " starts BRONZE and only the compound trigger may"
-                         + " change it)", sqlTutor, studentId, verificationDocNo);
+        long t0 = SqlLog.q("MEMBER 1  .  Become a mentor", sqlTutor, studentId, verificationDocNo);
 
         Connection c = null;
         try {
@@ -132,8 +129,7 @@ public class RoleDao {
             }
 
             if (subjectId != null) {
-                long t1 = SqlLog.q("RoleDao.becomeTutor  (first subject --"
-                                 + " composite key (tutor_id, subject_id))",
+                long t1 = SqlLog.q("MEMBER 1  .  Become a mentor",
                         sqlSkill, studentId, subjectId, competency, grade);
                 try (PreparedStatement ps = c.prepareStatement(sqlSkill)) {
                     ps.setInt(1, studentId);
@@ -148,8 +144,7 @@ public class RoleDao {
             c.commit();
 
             Database.showAfter(
-                "INSERTED into TUTOR -- and note the student is NOT removed "
-              + "from TUTEE. Overlapping means both rows may coexist:",
+                "INSERTED into TUTOR:",
                 "SELECT s.student_id, s.first_name, "
               + "NVL(t.badge_level,'-') AS tutor_badge, "
               + "NVL(e.academic_need_tier,'-') AS tutee_tier "
@@ -183,9 +178,7 @@ public class RoleDao {
                     tutor_id, subject_id, competency_level, grade_proof, certified_on)
                 VALUES (?, ?, ?, ?, SYSDATE)""";
 
-        long t0 = SqlLog.q("RoleDao.addSkill  (PK is the composite"
-                         + " (tutor_id, subject_id), so the same subject"
-                         + " cannot be claimed twice)",
+        long t0 = SqlLog.q("MEMBER 2  .  Register a subject to teach",
                 sql, tutorId, subjectId, competency, grade);
 
         Connection c = null;
@@ -227,9 +220,7 @@ public class RoleDao {
                         (SELECT NVL(MAX(slot_no),0) + 1 FROM slot WHERE tutor_id = ?),
                         ?, ?, ?)""";
 
-        long t0 = SqlLog.q("RoleDao.addSlot  (SLOT is a WEAK ENTITY -- slot_no"
-                         + " is a PARTIAL key, numbered per tutor, so the next"
-                         + " value is computed inside the INSERT)",
+        long t0 = SqlLog.q("MEMBER 2  .  Publish free hours",
                 sql, tutorId, tutorId, dayOfWeek, startTime, endTime);
 
         Connection c = null;
@@ -277,7 +268,7 @@ public class RoleDao {
                 INSERT INTO tutee_preftime (student_id, preferred_timeband)
                 VALUES (?, ?)""";
 
-        long t0 = SqlLog.q("RoleDao.becomeTutee  (subclass enrolment)",
+        long t0 = SqlLog.q("MEMBER 1  .  Become a mentee",
                 sqlTutee, studentId, needTier);
 
         Connection c = null;
@@ -292,9 +283,7 @@ public class RoleDao {
             }
 
             if (timeBands != null && !timeBands.isEmpty()) {
-                long t1 = SqlLog.q("RoleDao.becomeTutee  (PreferredTime was a"
-                                 + " MULTIVALUED attribute, so it has its own"
-                                 + " table -- one INSERT per band)",
+                long t1 = SqlLog.q("MEMBER 1  .  Become a mentee",
                         sqlPref, studentId, String.join(", ", timeBands));
 
                 int total = 0;
@@ -314,8 +303,7 @@ public class RoleDao {
             c.commit();
 
             Database.showAfter(
-                "INSERTED into TUTEE -- and the TUTOR row, if there was one, "
-              + "is still there. That is what overlapping means:",
+                "INSERTED into TUTEE:",
                 "SELECT s.student_id, s.first_name, "
               + "NVL(t.badge_level,'-') AS tutor_badge, "
               + "NVL(e.academic_need_tier,'-') AS tutee_tier "
@@ -326,8 +314,7 @@ public class RoleDao {
                 studentId);
 
             Database.showAfter(
-                "TUTEE_PREFTIME (PreferredTime was a MULTIVALUED attribute, "
-              + "so it has its own table):",
+                "TUTEE_PREFTIME:",
                 "SELECT student_id, preferred_timeband FROM tutee_preftime "
               + "WHERE student_id = ? ORDER BY preferred_timeband",
                 studentId);
@@ -353,7 +340,7 @@ public class RoleDao {
                        JOIN department d ON d.dept_id = sub.dept_id
                 ORDER  BY sub.subject_code""";
 
-        long t0 = SqlLog.q("RoleDao.subjects  (catalogue for the picker)", sql);
+        long t0 = SqlLog.q("MEMBER 2  .  Subject catalogue", sql);
 
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql);

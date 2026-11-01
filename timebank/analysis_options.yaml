@@ -9,6 +9,18 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+# other_members/ holds the Flutter code for the modules belonging to the
+# rest of the team -- bookings, the credit ledger, feedback and disputes.
+# It sits outside lib/, so Flutter never compiles it and it is not part
+# of this app. The analyzer still walks the whole project directory
+# though, and that code's relative imports (../../../../core/...) no
+# longer resolve from where it now lives, so without this exclusion
+# `flutter analyze` reports hundreds of errors in code that does not
+# build or ship. Excluding it keeps the analyzer honest about THIS app.
+analyzer:
+  exclude:
+    - other_members/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

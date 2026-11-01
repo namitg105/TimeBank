@@ -54,7 +54,7 @@ public class LedgerDao {
                      WHERE student_id = ?),
                     ?, ?, NULL)""";
 
-        long t0 = SqlLog.q("LedgerDao.postAdjustment  (admin GRANT/PENALTY)",
+        long t0 = SqlLog.q("MEMBER 4  .  Post a credit or penalty",
                 sql, type, amount, amount, studentId, remarks, studentId);
 
         Connection c = null;
@@ -80,8 +80,7 @@ public class LedgerDao {
                 SqlLog.changed(n, t0);
 
                 Database.showAfter(
-                    "INSERTED into CREDIT_TXN (append-only -- the only way to "
-                  + "correct this later is another row, never an edit):",
+                    "INSERTED into CREDIT_TXN:",
                     "SELECT txn_id, student_id, txn_type, amount, "
                   + "balance_snapshot, remarks FROM credit_txn "
                   + "WHERE txn_id = ?",
@@ -121,7 +120,7 @@ public class LedgerDao {
                 WHERE  t.student_id = ?
                 ORDER  BY t.txn_id DESC""";
 
-        long t0 = SqlLog.q("LedgerDao.passbook  (one student's credit history)",
+        long t0 = SqlLog.q("MEMBER 4  .  Credit history",
                 sql, studentId);
 
         try (Connection c = Database.get();
@@ -177,7 +176,7 @@ public class LedgerDao {
                         WHERE txn_type IN ('GRANT','PENALTY')) AS grants
                 FROM   dual""";
 
-        long t0 = SqlLog.q("LedgerDao.audit  (closed-economy check)", sql);
+        long t0 = SqlLog.q("MEMBER 4  .  Closed-economy audit", sql);
 
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql);
@@ -228,7 +227,7 @@ public class LedgerDao {
                           a.first_name, a.last_name, c.first_name, c.last_name
                 ORDER  BY a_taught_b DESC""";
 
-        long t0 = SqlLog.q("LedgerDao.collusionReport  (fraud detector)", sql);
+        long t0 = SqlLog.q("MEMBER 5  .  Collusion detector", sql);
 
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql);
@@ -269,7 +268,7 @@ public class LedgerDao {
                        JOIN student s ON s.student_id = ts.tutor_id
                 ORDER  BY ts.hours DESC""";
 
-        long t0 = SqlLog.q("LedgerDao.leaderboard  (CTE + DENSE_RANK)", sql);
+        long t0 = SqlLog.q("MEMBER 4  .  Tutor leaderboard", sql);
 
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql);

@@ -112,8 +112,7 @@ public final class SqlLog {
             return;
         }
         StringBuilder out = new StringBuilder();
-        out.append("\n  These statements ran INSIDE ").append(procedure)
-           .append(",\n  compiled in the database. Java never sent them:\n\n");
+        out.append("\n  Inside ").append(procedure).append(":\n\n");
         for (String line : sql.strip().split("\n")) {
             out.append("      ").append(line).append('\n');
         }

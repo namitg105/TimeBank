@@ -51,9 +51,7 @@ public class BookingDao {
                       p_booking_id => ?, p_session_code => ?);
                 END;""";
 
-        long t0 = SqlLog.q("BookingDao.book  ->  PKG_TIMEBANK.BOOK_SESSION"
-                         + "   (locks the slot FOR UPDATE, checks the collusion"
-                         + " cap, inserts, moves credits into escrow)",
+        long t0 = SqlLog.q("MEMBER 3  .  Book a session",
                 plsql, tuteeId, tutorId, subjectId, slotNo, when,
                 startTime, hours, mode, venue);
 
@@ -81,28 +79,19 @@ public class BookingDao {
                             + ", credits now in escrow, COMMIT", t0);
 
                 SqlLog.inside("PKG_TIMEBANK.BOOK_SESSION", """
-                        -- 1. lock the slot so two tutees cannot take it
                         SELECT tutor_id INTO v_x FROM slot
                         WHERE  tutor_id = p_tutor_id AND slot_no = p_slot_no
                         FOR UPDATE;
 
-                        -- 2. is that hour already taken?
                         SELECT COUNT(*) INTO v_clash FROM booking
-                        WHERE  tutor_id = p_tutor_id
+                        WHERE  tutor_id   = p_tutor_id
                         AND    sched_date = p_sched_date
                         AND    status IN ('REQUESTED','CONFIRMED')
                         AND    p_start_time < sched_start_time + duration_hours
                         AND    sched_start_time < p_start_time + p_duration;
 
-                        -- 3. weekly cap for this pair (anti-collusion)
-                        SELECT COUNT(*) INTO v_pair FROM booking ...
-
-                        -- 4. the booking itself
                         INSERT INTO booking (...) VALUES (seq_booking.NEXTVAL, ...);
 
-                        -- 5. move the credits into escrow: ONE negative row
-                        --    against the TUTEE. The tutor is paid only when
-                        --    both sides confirm.
                         post_txn (p_tutee_id, 'HOLD', -p_duration, ...);
                         """);
 
@@ -114,8 +103,7 @@ public class BookingDao {
                     r.bookingId());
 
                 Database.showAfter(
-                    "INSERTED into CREDIT_TXN -- the escrow HOLD. Negative, "
-                  + "against the TUTEE. The tutor is paid only on completion:",
+                    "INSERTED into CREDIT_TXN:",
                     "SELECT txn_id, student_id, txn_type, amount, "
                   + "balance_snapshot, remarks FROM credit_txn "
                   + "WHERE booking_id = ? ORDER BY txn_id",
@@ -192,9 +180,7 @@ public class BookingDao {
                                    WHERE  t.booking_id = b.booking_id)""";
 
         Connection c = null;
-        long t0 = SqlLog.q("BookingDao.purgeAbandoned  (only REQUESTED rows may"
-                         + " really be deleted -- anything in escrow is"
-                         + " referenced by CREDIT_TXN and Oracle refuses)", sql);
+        long t0 = SqlLog.q("MEMBER 3  .  Purge abandoned requests", sql);
 
         try {
             c = Database.get();

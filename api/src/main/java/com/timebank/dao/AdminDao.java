@@ -42,9 +42,7 @@ public class AdminDao {
                 FROM   admin
                 ORDER  BY admin_id""";
 
-        long t0 = SqlLog.q("AdminDao.all  (ADMIN is its own entity, not a flag"
-                         + " on STUDENT -- a moderator has no department, no"
-                         + " credit balance and no sessions)", sql);
+        long t0 = SqlLog.q("MEMBER 5  .  Moderators", sql);
 
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql);
@@ -93,9 +91,7 @@ public class AdminDao {
                                         ELSE 3 END,
                           d.booking_id DESC""";
 
-        long t0 = SqlLog.q("AdminDao.disputes  (five-table join; DISPUTE is a"
-                         + " WEAK ENTITY of BOOKING, keyed on the pair"
-                         + " (booking_id, dispute_no))", sql, status, status);
+        long t0 = SqlLog.q("MEMBER 5  .  Dispute queue", sql, status, status);
 
         try (Connection c = Database.get();
              PreparedStatement ps = c.prepareStatement(sql)) {
@@ -138,8 +134,7 @@ public class AdminDao {
                 AND    dispute_no = ?
                 AND    status     = 'OPEN'""";
 
-        long t0 = SqlLog.q("AdminDao.triage  (the status guard makes this"
-                         + " idempotent -- running it twice changes 0 rows)",
+        long t0 = SqlLog.q("MEMBER 5  .  Mark dispute under review",
                 sql, bookingId, disputeNo);
 
         Connection c = null;
@@ -188,9 +183,7 @@ public class AdminDao {
                       p_in_favour  => ?, p_note       => ?);
                 END;""";
 
-        long t0 = SqlLog.q("AdminDao.resolve  ->  PKG_TIMEBANK.RESOLVE_DISPUTE"
-                         + "   (returns escrow, may post a PENALTY, closes the"
-                         + " dispute -- one transaction)",
+        long t0 = SqlLog.q("MEMBER 5  .  Rule on a dispute",
                 plsql, bookingId, disputeNo, adminId, inFavour, note);
 
         Connection c = null;
@@ -207,16 +200,14 @@ public class AdminDao {
                 SqlLog.called("resolved in favour of " + inFavour + ", COMMIT", t0);
 
                 Database.showAfter(
-                    "DISPUTE is now closed, and names who closed it -- "
-                  + "CHK_DP_RESOLVED would refuse the row otherwise:",
+                    "DISPUTE is now closed, and names who closed it:",
                     "SELECT booking_id, dispute_no, status, resolved_by, "
                   + "resolution_note FROM dispute "
                   + "WHERE booking_id = ? AND dispute_no = ?",
                     bookingId, disputeNo);
 
                 Database.showAfter(
-                    "CREDIT_TXN rows this ruling wrote (a PENALTY is the only "
-                  + "way credits ever LEAVE the economy):",
+                    "CREDIT_TXN rows this ruling wrote:",
                     "SELECT txn_id, student_id, txn_type, amount, remarks "
                   + "FROM credit_txn WHERE booking_id = ? ORDER BY txn_id",
                     bookingId);
@@ -244,8 +235,7 @@ public class AdminDao {
                 SET    amount = amount + 999
                 WHERE  txn_id = (SELECT MIN(txn_id) FROM credit_txn)""";
 
-        long t0 = SqlLog.q("AdminDao.proveLedgerImmutable  (THIS IS MEANT TO"
-                         + " FAIL -- TRG_TXN_IMMUTABLE should refuse it)", sql);
+        long t0 = SqlLog.q("MEMBER 4  .  Try to edit the ledger", sql);
 
         Connection c = null;
         try {

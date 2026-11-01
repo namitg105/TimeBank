@@ -58,8 +58,7 @@ public class StudentDao {
                       p_student_id => ?);
                 END;""";
 
-        long t0 = SqlLog.q("StudentDao.register  ->  PKG_TIMEBANK.ENROL_STUDENT"
-                         + "   (writes STUDENT + the opening GRANT in one transaction)",
+        long t0 = SqlLog.q("MEMBER 1  .  Register a student",
                 plsql, regNo, firstName, lastName, email, dob, deptId,
                 block, roomNo, city);
 
@@ -96,7 +95,6 @@ public class StudentDao {
                             p_email, SYSDATE, 'ACTIVE', p_block, p_room_no,
                             p_city, p_dob, p_dept_id);
 
-                        -- the starter grant, in the SAME transaction
                         INSERT INTO credit_txn (
                             txn_id, txn_type, amount, balance_snapshot,
                             remarks, student_id, booking_id)
@@ -112,8 +110,7 @@ public class StudentDao {
                     newId);
 
                 Database.showAfter(
-                    "INSERTED into CREDIT_TXN (same transaction -- STUDENT has "
-                  + "TOTAL participation in posts):",
+                    "INSERTED into CREDIT_TXN:",
                     "SELECT txn_id, txn_type, amount, balance_snapshot, remarks "
                   + "FROM credit_txn WHERE student_id = ?",
                     newId);
@@ -133,8 +130,7 @@ public class StudentDao {
     public void addPhone(int studentId, String phone) throws SQLException {
         String sql = "INSERT INTO student_phone (student_id, phone_no) VALUES (?, ?)";
 
-        long t0 = SqlLog.q("StudentDao.addPhone  (PhoneNo is multivalued,"
-                         + " so it has its own table)", sql, studentId, phone);
+        long t0 = SqlLog.q("MEMBER 1  .  Add a phone number", sql, studentId, phone);
 
         Connection c = null;
         try {
@@ -147,7 +143,7 @@ public class StudentDao {
                 SqlLog.changed(n, t0);
 
                 Database.showAfter(
-                    "STUDENT_PHONE now holds, for student " + studentId + ":",
+                    "STUDENT_PHONE for student " + studentId + ":",
                     "SELECT student_id, phone_no FROM student_phone "
                   + "WHERE student_id = ? ORDER BY phone_no",
                     studentId);
@@ -184,8 +180,7 @@ public class StudentDao {
                 WHERE  student_id     = ?
                 AND    account_status <> 'INACTIVE'""";
 
-        long t0 = SqlLog.q("StudentDao.deactivate  (SOFT DELETE -- the foreign"
-                         + " keys from BOOKING and CREDIT_TXN forbid a real one)",
+        long t0 = SqlLog.q("MEMBER 1  .  Close an account",
                 sql, studentId);
 
         Connection c = null;
@@ -198,8 +193,7 @@ public class StudentDao {
                 SqlLog.changed(rows, t0);
 
                 Database.showAfter(
-                    "UPDATED -- the row survives, only the flag moved. Their "
-                  + "bookings and ledger rows are untouched:",
+                    "STUDENT after the update:",
                     "SELECT s.student_id, s.first_name, s.account_status, "
                   + "(SELECT COUNT(*) FROM booking b "
                   + " WHERE b.tutee_id = s.student_id "
@@ -232,8 +226,7 @@ public class StudentDao {
     public int removePhone(int studentId, String phone) throws SQLException {
         String sql = "DELETE FROM student_phone WHERE student_id = ? AND phone_no = ?";
 
-        long t0 = SqlLog.q("StudentDao.removePhone  (a REAL delete -- nothing"
-                         + " downstream references STUDENT_PHONE)",
+        long t0 = SqlLog.q("MEMBER 1  .  Remove a phone number",
                 sql, studentId, phone);
 
         Connection c = null;
@@ -247,8 +240,7 @@ public class StudentDao {
                 SqlLog.changed(rows, t0);
 
                 Database.showAfter(
-                    "DELETED -- STUDENT_PHONE now holds, for student "
-                  + studentId + ":",
+                    "STUDENT_PHONE for student " + studentId + ":",
                     "SELECT student_id, phone_no FROM student_phone "
                   + "WHERE student_id = ? ORDER BY phone_no",
                     studentId);
@@ -306,8 +298,7 @@ public class StudentDao {
 
         String pattern = "%" + term + "%";
 
-        long t0 = SqlLog.q("StudentDao.search  (Member 1 Q1 + Q2: derived age,"
-                         + " and TUTOR/TUTEE/BOTH/NEITHER from two LEFT JOINs)",
+        long t0 = SqlLog.q("MEMBER 1  .  Student directory",
                 sql, pattern, pattern);
 
         try (Connection c = Database.get();
@@ -333,12 +324,43 @@ public class StudentDao {
         return search("");          // an empty pattern matches everyone
     }
 
+    /**
+     * The departments, for the sign-up form's picker.
+     *
+     * <p>DEPT_ID is a mandatory foreign key on STUDENT, so the form has
+     * to offer real ones rather than a free-text box — the alternative
+     * is ORA-02291 on every typo.
+     */
+    public List<java.util.Map<String, Object>> departments() throws SQLException {
+        String sql = """
+                SELECT dept_id, dept_name, school
+                FROM   department
+                ORDER  BY school, dept_name""";
+
+        long t0 = SqlLog.q("MEMBER 1  .  Departments",
+                sql);
+
+        try (Connection c = Database.get();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            List<java.util.Map<String, Object>> out = new ArrayList<>();
+            while (rs.next()) {
+                out.add(java.util.Map.of(
+                        "deptId",   rs.getInt("dept_id"),
+                        "deptName", rs.getString("dept_name"),
+                        "school",   rs.getString("school")));
+            }
+            SqlLog.rows(out.size(), t0);
+            return out;
+        }
+    }
+
     /** Current balance — derived, so it is always summed from the ledger. */
     public BigDecimal balanceOf(int studentId) throws SQLException {
         String sql = "SELECT pkg_timebank.fn_balance(?) FROM dual";
 
-        long t0 = SqlLog.q("StudentDao.balanceOf  (CreditBalance is DERIVED --"
-                         + " nothing stores it, it is summed from the ledger)",
+        long t0 = SqlLog.q("MEMBER 1  .  Credit balance",
                 sql, studentId);
 
         try (Connection c = Database.get();

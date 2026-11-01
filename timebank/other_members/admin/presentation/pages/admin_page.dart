@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:timebank/core/di/injection.dart';
+import 'package:timebank/core/network/api_client.dart';
+import 'package:timebank/core/theme/app_colors.dart';
+import 'package:timebank/shared/widgets/app_widgets.dart';
 
-import '../../../../core/di/injection.dart';
-import '../../../../core/network/api_client.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../shared/widgets/app_widgets.dart';
 
 /// The moderator's area.
 ///
