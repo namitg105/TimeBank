@@ -159,8 +159,8 @@ class BookingCard extends StatelessWidget {
                       size: 13, color: AppColors.accent),
                   const SizedBox(width: 7),
                   Text(
-                    '${booking.creditsHeld.toStringAsFixed(1)} credits in '
-                    'escrow · ${booking.nextAction}',
+                    '${booking.creditsHeld.toStringAsFixed(1)} credits set '
+                    'aside · ${booking.nextAction}',
                     style: const TextStyle(
                         fontSize: 11.5, color: AppColors.accent),
                   ),
@@ -310,7 +310,7 @@ class _Actions extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Ask the tutee to read out the 8-character code they were '
+              'Ask the student to read out the 8-character code they were '
               'given when they booked.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
@@ -404,11 +404,11 @@ class _CancelButton extends StatelessWidget {
       ),
         title: const Text('Cancel this session?'),
         content: const Text(
-          'Who is cancelling decides where the escrow goes.\n\n'
-          'Tutor cancels, or tutee cancels more than 24 hours ahead: '
-          'all credits go back to the tutee.\n\n'
-          'Tutee cancels inside 24 hours: the credits are split, because '
-          'the tutor had already blocked out that hour.',
+          'Who cancels decides where the credits go.\n\n'
+          'If the tutor cancels, or the student cancels more than 24 hours '
+          'ahead, the student gets everything back.\n\n'
+          'If the student cancels inside 24 hours, the credits are split — '
+          'the tutor had already kept that hour free.',
           style: TextStyle(fontSize: 13, height: 1.5),
         ),
         actions: [
@@ -421,7 +421,7 @@ class _CancelButton extends StatelessWidget {
               bloc.add(SessionCancelled(booking.bookingId, 'TUTEE'));
               Navigator.pop(dialogContext);
             },
-            child: const Text('Tutee cancels'),
+            child: const Text('Student cancels'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(

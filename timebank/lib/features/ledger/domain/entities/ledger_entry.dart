@@ -54,8 +54,8 @@ class LedgerEntry extends Equatable {
   /// Plain-language explanation of what this row did.
   String get explanation => switch (txnType) {
         'GRANT'    => 'Credits added to the account',
-        'HOLD'     => 'Credits locked in escrow for a booking',
-        'RELEASE'  => 'Escrow returned after a cancellation',
+        'HOLD'     => 'Set aside for a booking',
+        'RELEASE'  => 'Returned after a cancellation',
         'TRANSFER' => 'Payment for a completed session',
         'PENALTY'  => 'Deduction after a dispute',
         _          => remarks,

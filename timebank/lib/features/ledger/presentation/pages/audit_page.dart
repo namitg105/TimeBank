@@ -205,7 +205,7 @@ class _AuditView extends StatelessWidget {
             children: [
               _Row('Sum of all balances', audit.balances),
               const SizedBox(height: 11),
-              _Row('Held in escrow', audit.escrow, prefix: '+'),
+              _Row('Set aside for bookings', audit.escrow, prefix: '+'),
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 13),
                 child: Divider(height: 1),
@@ -232,22 +232,21 @@ class _AuditView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _Explain('1',
-                  'Booking writes one HOLD: the tutee is debited straight away.'),
+                  'When a session is booked, the student pays straight away.'),
               _Explain('2',
-                  'Completion writes one TRANSFER: the tutor is credited the same amount.'),
+                  'When it is finished, the tutor is paid the same amount.'),
               _Explain('3',
-                  'Those two cancel out, so a finished session changes the total by nothing.'),
+                  'So a completed session leaves the total unchanged.'),
               _Explain('4',
-                  'Only a starter GRANT adds credits, and only a PENALTY removes them.'),
+                  'Only new accounts add credits, and only penalties remove them.'),
             ],
           ),
         ),
 
         const SizedBox(height: 16),
         const InfoBanner(
-          'The ledger is append-only — a database trigger blocks UPDATE and '
-          'DELETE on it entirely. Without that this check would prove '
-          'nothing, because the numbers could simply be edited to agree.',
+          'Credit history can never be edited or erased, so these totals '
+          'can be trusted.',
           icon: Icons.lock_outline,
         ),
       ],
@@ -378,12 +377,10 @@ class _ReportsView extends StatelessWidget {
                   ),
                 )),
 
-          const SectionLabel('Credit-loop collusion'),
+          const SectionLabel('Worth a look'),
           const InfoBanner(
-            'Two friends who repeatedly tutor each other net out to zero '
-            'credits but collect a review every time. No database can stop '
-            'people who agree to lie — it can only make the pattern easy to '
-            'see.',
+            'Pairs who keep tutoring each other back and forth. Their '
+            'credits cancel out, but both their ratings go up.',
             icon: Icons.visibility_outlined,
           ),
           const SizedBox(height: 12),
@@ -403,7 +400,7 @@ class _ReportsView extends StatelessWidget {
                   SizedBox(width: 11),
                   Expanded(
                     child: Text(
-                      'No reciprocal pairs found.',
+                      'Nothing unusual.',
                       style: TextStyle(
                           fontSize: 13, color: AppColors.positive),
                     ),

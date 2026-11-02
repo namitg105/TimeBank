@@ -163,18 +163,17 @@ class StudentCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         side: const BorderSide(color: AppColors.border),
       ),
-        title: const Text('Close this account?'),
+        title: const Text('Deactivate this account?'),
         content: Text(
-          '${student.fullName} will be marked INACTIVE.\n\n'
-          'This is an UPDATE, not a DELETE. Their sessions and ledger rows '
-          'are kept — the database refuses to remove a student who has '
-          'either, so that history can never go missing.',
+          '${student.fullName} will no longer be able to sign in.\n\n'
+          'Their past sessions and credits stay on record, and you can '
+          'reactivate the account at any time.',
           style: const TextStyle(fontSize: 13.5, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Keep it open'),
+            child: const Text('Cancel'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(

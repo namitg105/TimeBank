@@ -77,7 +77,7 @@ class _StudentsPageState extends State<StudentsPage> {
                   (s is StudentFailure && !s.isRule),
               builder: (context, state) => switch (state) {
                 StudentLoading() =>
-                  const LoadingView(label: 'Reading from Oracle'),
+                  const LoadingView(label: 'Loading'),
                 StudentFailure(:final message) => ErrorView(
                     message: message,
                     onRetry: () => context

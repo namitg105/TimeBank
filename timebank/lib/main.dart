@@ -6,39 +6,40 @@ import 'core/di/injection.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 
+import 'features/admin/presentation/pages/admin_page.dart';
 import 'features/auth/presentation/pages/welcome_page.dart';
 import 'features/auth/session.dart';
+import 'features/bookings/presentation/bloc/booking_bloc.dart';
+import 'features/bookings/presentation/pages/bookings_page.dart';
+import 'features/ledger/presentation/bloc/ledger_bloc.dart';
+import 'features/ledger/presentation/pages/audit_page.dart';
+import 'features/ledger/presentation/pages/ledger_page.dart';
 import 'features/profile/presentation/pages/profile_page.dart';
 import 'features/skills/presentation/pages/skills_page.dart';
 import 'features/students/presentation/bloc/student_bloc.dart';
 import 'features/students/presentation/pages/students_page.dart';
 
-/// TimeBank — peer tutoring credit exchange.
-///
-/// SCOPE OF THIS BUILD
-/// This app covers two of the five modules the schema supports:
-///
-///   Member 1  Onboarding and profiles
-///             STUDENT, STUDENT_PHONE, TUTOR, TUTEE, TUTEE_PREFTIME,
-///             DEPARTMENT. The overlapping-partial specialization,
-///             derived attributes, and soft delete.
-///
-///   Member 2  Skills and availability
-///             SUBJECT, TUTOR_SKILL, SLOT. The M:N relationship,
-///             weak entities with partial keys, and cross-department
-///             tutoring.
-///
-/// Bookings, the credit ledger, feedback and disputes exist in the
-/// database and in sql/ — they are other members' modules — but they
-/// have no screens here.
+/// TimeBank — peer tutoring, paid for in hours rather than money.
 ///
 /// ARCHITECTURE
 ///
 ///     Flutter  --HTTP/JSON-->  Spring Boot  --JDBC-->  Oracle
 ///
-/// Flutter cannot reach Oracle directly: JDBC is a Java API and there
+/// Flutter cannot reach Oracle on its own: JDBC is a Java API and there
 /// is no Oracle driver for Dart. The Spring Boot service in ../api is
 /// the bridge, and that is where the real JDBC work happens.
+///
+/// WHAT EACH TAB COVERS
+///
+///   Profile / Students   Member 1  onboarding, roles, soft delete
+///   Subjects             Member 2  skills, availability, the catalogue
+///   Sessions             Member 3  booking, check-in, confirmation
+///   Credits / Audit      Member 4  escrow, the ledger, the audit
+///   Admin                Member 5  feedback, disputes, fraud
+///
+/// Nothing in the UI explains any of that. A student sees an app; the
+/// database reasoning lives in these comments and in the API console,
+/// where every click prints the statement it ran.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -59,17 +60,21 @@ class TimeBankApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => sl<StudentBloc>(),
+    // The Blocs are provided once, above the navigation shell, so state
+    // survives switching tabs. A Bloc created per page would refetch
+    // everything on every tap.
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => sl<StudentBloc>()),
+        BlocProvider(create: (_) => sl<BookingBloc>()),
+        BlocProvider(create: (_) => sl<LedgerBloc>()),
+      ],
       child: MaterialApp(
         title: 'TimeBank',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
         darkTheme: AppTheme.dark,
         themeMode: ThemeMode.dark,
-
-        // One listener decides the whole route: signed out, signed in as
-        // a student, or signed in as the administrator.
         home: ValueListenableBuilder<Session?>(
           valueListenable: currentSession,
           builder: (context, session, _) {
@@ -90,10 +95,8 @@ class TimeBankApp extends StatelessWidget {
 //  STUDENT
 // =====================================================================
 
-/// What a signed-in student sees.
-///
-/// Two tabs, one per module: their own profile and role (Member 1), and
-/// the subjects and availability they can teach (Member 2).
+/// What a signed-in student sees: themselves, what they can teach, the
+/// sessions they are part of, and what their credits have done.
 class StudentShell extends StatefulWidget {
   const StudentShell({super.key});
 
@@ -107,11 +110,15 @@ class _StudentShellState extends State<StudentShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // IndexedStack, not a plain switch: each page keeps its scroll
+      // position and its loaded data when the user moves between tabs.
       body: IndexedStack(
         index: _index,
         children: const [
           ProfilePage(),
           SkillsPage(),
+          BookingsPage(),
+          LedgerPage(),
         ],
       ),
       bottomNavigationBar: _Nav(
@@ -121,12 +128,22 @@ class _StudentShellState extends State<StudentShell> {
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
-            label: 'My profile',
+            label: 'Me',
           ),
           NavigationDestination(
             icon: Icon(Icons.menu_book_outlined),
             selectedIcon: Icon(Icons.menu_book),
-            label: 'Skills',
+            label: 'Subjects',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.event_note_outlined),
+            selectedIcon: Icon(Icons.event_note),
+            label: 'Sessions',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: Icon(Icons.account_balance_wallet),
+            label: 'Credits',
           ),
         ],
       ),
@@ -138,11 +155,8 @@ class _StudentShellState extends State<StudentShell> {
 //  ADMINISTRATOR
 // =====================================================================
 
-/// What the administrator sees.
-///
-/// The same two modules, from the other side: the whole student
-/// directory with onboarding and account closure (Member 1), and the
-/// subject catalogue with the skill matrix (Member 2).
+/// What the administrator sees: everyone, everything they teach, every
+/// session, the books, and the complaints.
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
 
@@ -161,6 +175,9 @@ class _AdminShellState extends State<AdminShell> {
         children: const [
           StudentsPage(),
           SkillsPage(),
+          BookingsPage(),
+          AuditPage(),
+          AdminPage(),
         ],
       ),
       bottomNavigationBar: _Nav(
@@ -170,12 +187,27 @@ class _AdminShellState extends State<AdminShell> {
           NavigationDestination(
             icon: Icon(Icons.people_outline),
             selectedIcon: Icon(Icons.people),
-            label: 'Directory',
+            label: 'Students',
           ),
           NavigationDestination(
             icon: Icon(Icons.school_outlined),
             selectedIcon: Icon(Icons.school),
             label: 'Subjects',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.event_note_outlined),
+            selectedIcon: Icon(Icons.event_note),
+            label: 'Sessions',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.verified_outlined),
+            selectedIcon: Icon(Icons.verified),
+            label: 'Credits',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.gavel_outlined),
+            selectedIcon: Icon(Icons.gavel),
+            label: 'Complaints',
           ),
         ],
       ),

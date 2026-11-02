@@ -103,7 +103,7 @@ class _SkillsPageState extends State<SkillsPage> {
         ],
       ),
       body: _loading
-          ? const LoadingView(label: 'Reading from Oracle')
+          ? const LoadingView(label: 'Loading')
           : _error != null
               ? ErrorView(message: _error!, onRetry: _load)
               : _body(),

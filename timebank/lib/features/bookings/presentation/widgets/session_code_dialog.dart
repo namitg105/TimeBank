@@ -44,7 +44,7 @@ class SessionCodeDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Give this code to the tutee, and nobody else.',
+            'Give this code to the student, and nobody else.',
             style: TextStyle(fontSize: 13.5, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 18),
@@ -88,11 +88,11 @@ class SessionCodeDialog extends StatelessWidget {
 
           const SizedBox(height: 18),
           _Line(Icons.lock_outline,
-              '${creditsHeld.toStringAsFixed(1)} credits are now held in escrow.'),
+              '${creditsHeld.toStringAsFixed(1)} credits have been set aside.'),
           const _Line(Icons.login,
-              'The tutor types this code in at the start of the session.'),
+              'The tutor types it in at the start of the session.'),
           const _Line(Icons.how_to_reg_outlined,
-              'Credits reach the tutor only when both sides confirm.'),
+              'Credits move only once you both confirm it happened.'),
         ],
       ),
       actions: [

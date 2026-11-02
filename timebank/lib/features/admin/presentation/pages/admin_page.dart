@@ -112,7 +112,7 @@ class _AdminPageState extends State<AdminPage> {
         ],
       ),
       body: _loading
-          ? const LoadingView(label: 'Reading from Oracle')
+          ? const LoadingView(label: 'Loading')
           : _error != null
               ? ErrorView(message: _error!, onRetry: _load)
               : _body(),
@@ -124,10 +124,8 @@ class _AdminPageState extends State<AdminPage> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
       children: [
         const InfoBanner(
-          'ADMIN is its own entity, not a flag on STUDENT. A moderator has '
-          'no department, no credit balance and takes part in no sessions, '
-          'so folding them into STUDENT would mean columns that are null '
-          'for almost every row.',
+          'Complaints raised by students and tutors come here to be '
+          'settled.',
           icon: Icons.admin_panel_settings_outlined,
           tint: AppColors.accent,
         ),
@@ -167,10 +165,7 @@ class _AdminPageState extends State<AdminPage> {
               ),
               const SizedBox(height: 10),
               const Text(
-                'A picker over the ADMIN table, not authentication — there '
-                'is no password column in the schema. What the database '
-                'does enforce is that a RESOLVED dispute must name who '
-                'ruled on it and why.',
+                'Complaints you close are recorded against this name.',
                 style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
               ),
             ],
@@ -178,22 +173,20 @@ class _AdminPageState extends State<AdminPage> {
         ),
 
         // ---------------------------------------------------- proof
-        const SectionLabel('Prove the ledger cannot be edited'),
+        const SectionLabel('Credit history'),
         Panel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Deliberately tries to change a credit row. It should be '
-                'refused. Not even an administrator can rewrite credit '
-                'history — a mistake is corrected by posting a '
-                'compensating row, exactly as in a real ledger.',
+                'Credit history cannot be changed by anyone, including '
+                'you. Press this to check that protection is working.',
                 style: TextStyle(fontSize: 12.5),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 icon: const Icon(Icons.gpp_bad_outlined, size: 18),
-                label: const Text('Attempt to edit the ledger'),
+                label: const Text('Check the protection'),
                 onPressed: () => _act(
                   () => _api.post('/api/admin/prove-immutable'),
                 ),
@@ -215,7 +208,7 @@ class _AdminPageState extends State<AdminPage> {
 
         // ---------------------------------------------------- disputes
         SectionLabel(
-          'Dispute queue',
+          'Complaints',
           trailing: Text(
             '${_disputes.length}',
             style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
@@ -246,21 +239,14 @@ class _AdminPageState extends State<AdminPage> {
         if (_disputes.isEmpty)
           const Panel(
             child: Text(
-              'Nothing in the queue for this filter.',
+              'Nothing here.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
           )
         else
           for (final d in _disputes) _disputeCard(d),
 
-        const SizedBox(height: 16),
-        const InfoBanner(
-          'DISPUTE is a WEAK ENTITY of BOOKING: dispute_no is only a partial '
-          'key, numbered within one booking, so the primary key is the pair '
-          '(booking_id, dispute_no). A dispute cannot exist without the '
-          'session it is about.',
-          icon: Icons.link,
-        ),
+
       ],
     );
   }
@@ -280,7 +266,7 @@ class _AdminPageState extends State<AdminPage> {
             Row(
               children: [
                 Text(
-                  'Booking $bookingId · dispute $disputeNo',
+                  'Session $bookingId  ·  complaint $disputeNo',
                   style: const TextStyle(
                       fontSize: 13.5, fontWeight: FontWeight.w600),
                 ),
@@ -331,21 +317,21 @@ class _AdminPageState extends State<AdminPage> {
                       onPressed: () => _act(() => _api.post(
                             '/api/admin/disputes/$bookingId/$disputeNo/triage',
                           )),
-                      child: const Text('Mark under review',
+                      child: const Text('Looking into it',
                           style: TextStyle(fontSize: 12.5)),
                     ),
                   FilledButton(
                     onPressed: _adminId == null
                         ? null
                         : () => _askRuling(bookingId, disputeNo, 'TUTEE'),
-                    child: const Text('Rule for the tutee',
+                    child: const Text('Side with the student',
                         style: TextStyle(fontSize: 12.5)),
                   ),
                   FilledButton.tonal(
                     onPressed: _adminId == null
                         ? null
                         : () => _askRuling(bookingId, disputeNo, 'TUTOR'),
-                    child: const Text('Rule for the tutor',
+                    child: const Text('Side with the tutor',
                         style: TextStyle(fontSize: 12.5)),
                   ),
                 ],
@@ -360,24 +346,22 @@ class _AdminPageState extends State<AdminPage> {
   Future<void> _askRuling(int bookingId, int disputeNo, String inFavour) async {
     final controller = TextEditingController(
       text: inFavour == 'TUTEE'
-          ? 'Checked the check-in log: no code was ever entered. '
-            'Escrow returned, tutor penalised.'
-          : 'The tutor attended and the session took place as scheduled.',
+          ? 'Nobody checked in, so the session did not take place. '
+            'Credits returned to the student.'
+          : 'The tutor was there and the session went ahead as arranged.',
     );
 
     final note = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: Text('Rule for the $inFavour'),
+        title: Text(inFavour == 'TUTEE' ? 'Side with the student' : 'Side with the tutor'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'A resolution note is required. The CHECK constraint on '
-              'DISPUTE refuses a RESOLVED row without one, and without '
-              'the admin who ruled.',
+              'Say why. This is kept with the complaint.',
               style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 12),
@@ -397,7 +381,7 @@ class _AdminPageState extends State<AdminPage> {
           FilledButton(
             onPressed: () =>
                 Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Resolve'),
+            child: const Text('Close the complaint'),
           ),
         ],
       ),

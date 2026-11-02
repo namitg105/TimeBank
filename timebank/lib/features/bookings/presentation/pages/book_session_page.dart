@@ -90,9 +90,8 @@ class _BookSessionPageState extends State<BookSessionPage> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
             children: [
               const InfoBanner(
-                'The tutee is charged the moment this is booked. The credits '
-                'sit in escrow and reach the tutor only when both sides '
-                'confirm the session happened.',
+                'Credits are set aside when you book, and go to the tutor '
+                'once you both confirm the session happened.',
                 icon: Icons.lock_outline,
                 tint: AppColors.accent,
               ),
@@ -119,14 +118,11 @@ class _BookSessionPageState extends State<BookSessionPage> {
               const SizedBox(height: 8),
               InfoBanner(
                 _intent == 'LEARN'
-                    ? 'You will be added to the TUTEE table if you are not '
-                      'already in it. You stay a tutor if you were one -- '
-                      'the specialization is overlapping, so nothing is '
-                      'taken away.'
-                    : 'You will be added to the TUTOR table if you are not '
-                      'already in it, with a BRONZE badge and a skill row '
-                      'for the subject below. You stay a tutee if you were '
-                      'one.',
+                    ? 'If you have not booked help before, this sets you up '
+                      'as a learner. Anything you teach stays as it is.'
+                    : 'If you have not taught before, this sets you up as a '
+                      'mentor for the subject below. Anything you learn '
+                      'stays as it is.',
                 icon: Icons.account_tree_outlined,
               ),
 
@@ -167,9 +163,8 @@ class _BookSessionPageState extends State<BookSessionPage> {
               _numField(_slotNo, "The tutor's slot number", hint: '1'),
               const SizedBox(height: 4),
               const InfoBanner(
-                'The slot has to belong to that tutor, and the date has to '
-                'fall on the slot\'s weekday. Both are checked by the '
-                'database, not here.',
+                'Pick a slot the tutor has published, and a date on the '
+                'right weekday for it.',
               ),
 
               const SizedBox(height: 18),

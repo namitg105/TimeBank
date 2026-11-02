@@ -82,9 +82,8 @@ class _RegisterStudentPageState extends State<RegisterStudentPage> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
             children: [
               const InfoBanner(
-                'Registering writes two rows in one transaction: the student, '
-                'and their 3.0 starter credits in the ledger. A student can '
-                'never exist without an opening balance.',
+                'New students start with 3.0 credits. One credit buys an '
+                'hour of help, and they earn more by teaching.',
                 icon: Icons.account_balance_wallet_outlined,
                 tint: AppColors.accent,
               ),
@@ -111,9 +110,8 @@ class _RegisterStudentPageState extends State<RegisterStudentPage> {
               ),
               const SizedBox(height: 8),
               const InfoBanner(
-                'A department does not limit what a student may tutor. '
-                'A Mechanical student can teach Database Systems, and one '
-                'already does.',
+                'A student can teach any subject, not just ones from their '
+                'own school.',
                 icon: Icons.swap_horiz,
               ),
 

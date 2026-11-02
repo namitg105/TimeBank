@@ -98,7 +98,7 @@ class _BookingsPageState extends State<BookingsPage> {
                   (s is BookingFailure && !s.isRule),
               builder: (context, state) => switch (state) {
                 BookingLoading() =>
-                  const LoadingView(label: 'Reading from Oracle'),
+                  const LoadingView(label: 'Loading'),
                 BookingFailure(:final message) => ErrorView(
                     message: message,
                     onRetry: () => context
@@ -236,7 +236,7 @@ class _BookingList extends StatelessWidget {
             child: Text(
               escrow > 0
                   ? '${bookings.length} sessions  ·  '
-                      '${escrow.toStringAsFixed(1)} credits in escrow'
+                      '${escrow.toStringAsFixed(1)} credits set aside'
                   : '${bookings.length} sessions',
               style: Theme.of(context).textTheme.bodySmall,
             ),

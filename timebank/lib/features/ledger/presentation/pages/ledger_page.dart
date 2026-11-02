@@ -100,8 +100,7 @@ class _LedgerPageState extends State<LedgerPage> {
                       ? const EmptyState(
                           icon: Icons.receipt_long_outlined,
                           title: 'No transactions',
-                          hint: 'Check the student id — every registered '
-                              'student has at least a starter grant.',
+                          hint: 'Check the student number.',
                         )
                       : _Passbook(entries: entries, balance: balance),
                 _ => const LoadingView(),
@@ -214,8 +213,7 @@ class _BalanceHeader extends StatelessWidget {
               const SizedBox(width: 9),
               const Expanded(
                 child: Text(
-                  'Nothing stores this number. It is the sum of the rows '
-                  'below, recomputed every time it is asked for.',
+                  'This is the total of everything below.',
                   style: TextStyle(
                       fontSize: 11.5,
                       height: 1.45,
@@ -227,9 +225,8 @@ class _BalanceHeader extends StatelessWidget {
           if (negative) ...[
             const SizedBox(height: 12),
             const InfoBanner(
-              'Below zero. This student has borrowed against future '
-              'tutoring. The floor is -5.0, after which the database '
-              'refuses new bookings.',
+              'This balance is below zero. New bookings stop once it '
+              'reaches -5.0.',
               icon: Icons.warning_amber_outlined,
               tint: AppColors.negative,
             ),
