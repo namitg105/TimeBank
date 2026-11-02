@@ -1,4 +1,14 @@
 import 'package:get_it/get_it.dart';
+import 'package:timebank/features/bookings/data/datasources/booking_remote_datasource.dart';
+import 'package:timebank/features/bookings/data/repositories/booking_repository_impl.dart';
+import 'package:timebank/features/bookings/domain/repositories/booking_repository.dart';
+import 'package:timebank/features/bookings/domain/usecases/booking_usecases.dart';
+import 'package:timebank/features/bookings/presentation/bloc/booking_bloc.dart';
+import 'package:timebank/features/ledger/data/datasources/ledger_remote_datasource.dart';
+import 'package:timebank/features/ledger/data/repositories/ledger_repository_impl.dart';
+import 'package:timebank/features/ledger/domain/repositories/ledger_repository.dart';
+import 'package:timebank/features/ledger/domain/usecases/ledger_usecases.dart';
+import 'package:timebank/features/ledger/presentation/bloc/ledger_bloc.dart';
 
 import '../network/api_client.dart';
 
