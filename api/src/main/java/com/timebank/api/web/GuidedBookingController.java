@@ -2,6 +2,7 @@ package com.timebank.api.web;
 
 import com.timebank.dao.BookingDao;
 import com.timebank.dao.RoleDao;
+import com.timebank.dao.StudentLookup;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -69,10 +70,14 @@ public class GuidedBookingController {
     public ResponseEntity<Map<String, Object>> guided(
             @RequestBody Map<String, Object> body) throws SQLException {
 
-        Integer studentId     = intOf(body.get("studentId"),     "studentId");
-        Integer counterpartId = intOf(body.get("counterpartId"), "counterpartId");
-        Integer subjectId     = intOf(body.get("subjectId"),     "subjectId");
-        Integer slotNo        = intOf(body.get("slotNo"),        "slotNo");
+        // Either field may be a registration number or a bare id -- the
+        // registration number is the one people actually know.
+        Integer studentId     = StudentLookup.resolve(
+                                    str(body.get("studentId"), null));
+        Integer counterpartId = StudentLookup.resolve(
+                                    str(body.get("counterpartId"), null));
+        Integer subjectId     = intOf(body.get("subjectId"), "subjectId");
+        Integer slotNo        = intOf(body.get("slotNo"),    "slotNo");
 
         String intent = str(body.get("intent"), "LEARN").toUpperCase();
         if (!intent.equals("LEARN") && !intent.equals("TEACH")) {
@@ -82,8 +87,7 @@ public class GuidedBookingController {
 
         if (studentId.equals(counterpartId)) {
             throw new IllegalArgumentException(
-                    "A student cannot book a session with themselves. "
-                  + "CHK_BK_NOT_SELF on BOOKING would refuse it anyway.");
+                    "You cannot book a session with yourself.");
         }
 
         // Who sits on which side of the session.

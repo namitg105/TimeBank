@@ -2,6 +2,7 @@ package com.timebank.api.web;
 
 import com.timebank.dao.RoleDao;
 import com.timebank.dao.SkillsDao;
+import com.timebank.dao.StudentLookup;
 import org.springframework.web.bind.annotation.*;
 
 import java.sql.SQLException;
@@ -49,11 +50,16 @@ public class SkillsController {
         return skills.capacity();
     }
 
-    /** GET /api/skills/slots/101 — one tutor's published availability. */
-    @GetMapping("/slots/{tutorId}")
-    public List<Map<String, Object>> slots(@PathVariable int tutorId)
+    /**
+     * GET /api/skills/slots/101  or  /api/skills/slots/25BCE1001
+     *
+     * <p>Accepts a registration number as well as an id, because that
+     * is what a person booking a session actually knows.
+     */
+    @GetMapping("/slots/{ref}")
+    public List<Map<String, Object>> slots(@PathVariable String ref)
             throws SQLException {
-        return skills.slotsOf(tutorId);
+        return skills.slotsOf(StudentLookup.resolve(ref));
     }
 
     /** POST /api/skills/slots/101 — publish a slot. */

@@ -143,8 +143,13 @@ class _AdminAuthPageState extends State<AdminAuthPage> {
         'password': _password.text,
       }) as Map;
 
+      if (!mounted) return;
+
       currentSession.value =
           Session.fromJson(Map<String, dynamic>.from(data));
+
+      // Close this form so the admin shell underneath becomes visible.
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
       final raw = '$e';

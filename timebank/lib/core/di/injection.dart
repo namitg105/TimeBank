@@ -43,55 +43,65 @@ Future<void> initDependencies({String? baseUrl}) async {
   // ---- students ----------------------------------------------------
   sl
     ..registerLazySingleton<StudentRemoteDataSource>(
-        () => StudentRemoteDataSourceImpl(sl()))
+      () => StudentRemoteDataSourceImpl(sl()),
+    )
     ..registerLazySingleton<StudentRepository>(
-        () => StudentRepositoryImpl(sl()))
+      () => StudentRepositoryImpl(sl()),
+    )
     ..registerLazySingleton(() => GetStudents(sl()))
     ..registerLazySingleton(() => SearchStudents(sl()))
     ..registerLazySingleton(() => RegisterStudent(sl()))
     ..registerLazySingleton(() => DeactivateStudent(sl()))
-    ..registerFactory(() => StudentBloc(
-          getStudents: sl(),
-          searchStudents: sl(),
-          registerStudent: sl(),
-          deactivateStudent: sl(),
-        ));
+    ..registerFactory(
+      () => StudentBloc(
+        getStudents: sl(),
+        searchStudents: sl(),
+        registerStudent: sl(),
+        deactivateStudent: sl(),
+      ),
+    );
 
   // ---- bookings ----------------------------------------------------
   sl
     ..registerLazySingleton<BookingRemoteDataSource>(
-        () => BookingRemoteDataSourceImpl(sl()))
+      () => BookingRemoteDataSourceImpl(sl()),
+    )
     ..registerLazySingleton<BookingRepository>(
-        () => BookingRepositoryImpl(sl()))
+      () => BookingRepositoryImpl(sl()),
+    )
     ..registerLazySingleton(() => GetBookings(sl()))
     ..registerLazySingleton(() => BookSession(sl()))
     ..registerLazySingleton(() => CheckInSession(sl()))
     ..registerLazySingleton(() => ConfirmSession(sl()))
     ..registerLazySingleton(() => CancelSession(sl()))
-    ..registerFactory(() => BookingBloc(
-          getBookings: sl(),
-          bookSession: sl(),
-          checkInSession: sl(),
-          confirmSession: sl(),
-          cancelSession: sl(),
-        ));
+    ..registerFactory(
+      () => BookingBloc(
+        getBookings: sl(),
+        bookSession: sl(),
+        checkInSession: sl(),
+        confirmSession: sl(),
+        cancelSession: sl(),
+      ),
+    );
 
   // ---- ledger ------------------------------------------------------
   sl
     ..registerLazySingleton<LedgerRemoteDataSource>(
-        () => LedgerRemoteDataSourceImpl(sl()))
-    ..registerLazySingleton<LedgerRepository>(
-        () => LedgerRepositoryImpl(sl()))
+      () => LedgerRemoteDataSourceImpl(sl()),
+    )
+    ..registerLazySingleton<LedgerRepository>(() => LedgerRepositoryImpl(sl()))
     ..registerLazySingleton(() => GetPassbook(sl()))
     ..registerLazySingleton(() => RunAudit(sl()))
     ..registerLazySingleton(() => PostAdjustment(sl()))
     ..registerLazySingleton(() => GetLeaderboard(sl()))
     ..registerLazySingleton(() => GetCollusionReport(sl()))
-    ..registerFactory(() => LedgerBloc(
-          getPassbook: sl(),
-          runAudit: sl(),
-          postAdjustment: sl(),
-          getLeaderboard: sl(),
-          getCollusionReport: sl(),
-        ));
+    ..registerFactory(
+      () => LedgerBloc(
+        getPassbook: sl(),
+        runAudit: sl(),
+        postAdjustment: sl(),
+        getLeaderboard: sl(),
+        getCollusionReport: sl(),
+      ),
+    );
 }

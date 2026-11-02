@@ -5,6 +5,7 @@ import '../../../../shared/widgets/app_widgets.dart';
 import '../../domain/entities/ledger_entry.dart';
 import '../bloc/ledger_bloc.dart';
 import '../widgets/ledger_tile.dart';
+import '../../../auth/session.dart';
 
 /// A student's passbook.
 ///
@@ -20,12 +21,16 @@ class LedgerPage extends StatefulWidget {
 }
 
 class _LedgerPageState extends State<LedgerPage> {
-  final _idController = TextEditingController(text: '102');
+  /// A signed-in student opens their own passbook; nobody should have
+  /// to look up their own id. An administrator can type another one.
+  late final int _initialId = currentSession.value?.studentId ?? 102;
+  late final TextEditingController _idController =
+      TextEditingController(text: '$_initialId');
 
   @override
   void initState() {
     super.initState();
-    context.read<LedgerBloc>().add(const PassbookRequested(102));
+    context.read<LedgerBloc>().add(PassbookRequested(_initialId));
   }
 
   @override
@@ -50,8 +55,8 @@ class _LedgerPageState extends State<LedgerPage> {
                     keyboardType: TextInputType.number,
                     style: const TextStyle(fontSize: 14.5),
                     decoration: const InputDecoration(
-                      labelText: 'Student id',
-                      hintText: '101 to 112',
+                      labelText: 'Student number',
+                      hintText: 'yours by default',
                       prefixIcon: Icon(Icons.badge_outlined,
                           size: 19, color: AppColors.textMuted),
                     ),

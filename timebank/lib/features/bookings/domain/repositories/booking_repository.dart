@@ -19,9 +19,12 @@ abstract interface class BookingRepository {
   ///
   /// The code goes to the TUTEE only. The tutor types it in at the start
   /// of the session, which is what proves the tutee actually attended.
+  /// [tuteeRef] and [tutorRef] may each be a registration number or a
+  /// bare student id. The registration number is the one people know;
+  /// the API resolves it.
   Future<Either<Failure, (int bookingId, String sessionCode)>> book({
-    required int tuteeId,
-    required int tutorId,
+    required String tuteeRef,
+    required String tutorRef,
     required int subjectId,
     required int slotNo,
     required DateTime schedDate,
@@ -35,7 +38,7 @@ abstract interface class BookingRepository {
     // specialization is overlapping -- choosing to teach does not
     // stop you learning.
     String? intent,      // 'LEARN' or 'TEACH'
-    int? studentId,      // who is doing the booking
+    String? studentRef,  // who is doing the booking
   });
 
   Future<Either<Failure, String>> checkIn(int bookingId, String sessionCode);

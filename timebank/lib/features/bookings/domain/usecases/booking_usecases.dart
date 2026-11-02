@@ -36,9 +36,14 @@ final class BookSession implements UseCase<(int, String), BookSessionParams> {
 
   @override
   Future<Either<Failure, (int, String)>> call(BookSessionParams p) async {
-    if (p.tutorId == p.tuteeId) {
+    if (p.tutorRef.trim().toUpperCase() ==
+        p.tuteeRef.trim().toUpperCase()) {
       return const Left(
           ValidationFailure('You cannot book a session with yourself.'));
+    }
+    if (p.tutorRef.trim().isEmpty || p.tuteeRef.trim().isEmpty) {
+      return const Left(
+          ValidationFailure('Enter the other person\'s registration number.'));
     }
     if (![0.5, 1.0, 1.5, 2.0].contains(p.durationHours)) {
       return const Left(
@@ -49,8 +54,8 @@ final class BookSession implements UseCase<(int, String), BookSessionParams> {
     }
 
     return repository.book(
-      tuteeId: p.tuteeId,
-      tutorId: p.tutorId,
+      tuteeRef: p.tuteeRef,
+      tutorRef: p.tutorRef,
       subjectId: p.subjectId,
       slotNo: p.slotNo,
       schedDate: p.schedDate,
@@ -59,14 +64,14 @@ final class BookSession implements UseCase<(int, String), BookSessionParams> {
       mode: p.mode,
       venue: p.venue,
       intent: p.intent,
-      studentId: p.studentId,
+      studentRef: p.studentRef,
     );
   }
 }
 
 final class BookSessionParams extends Equatable {
-  final int tuteeId;
-  final int tutorId;
+  final String tuteeRef;
+  final String tutorRef;
   final int subjectId;
   final int slotNo;
   final DateTime schedDate;
@@ -84,11 +89,11 @@ final class BookSessionParams extends Equatable {
   final String? intent;
 
   /// The student doing the booking, whose role may need creating.
-  final int? studentId;
+  final String? studentRef;
 
   const BookSessionParams({
-    required this.tuteeId,
-    required this.tutorId,
+    required this.tuteeRef,
+    required this.tutorRef,
     required this.subjectId,
     required this.slotNo,
     required this.schedDate,
@@ -97,12 +102,12 @@ final class BookSessionParams extends Equatable {
     required this.mode,
     required this.venue,
     this.intent,
-    this.studentId,
+    this.studentRef,
   });
 
   @override
   List<Object?> get props =>
-      [tuteeId, tutorId, subjectId, slotNo, schedDate, startTime, intent];
+      [tuteeRef, tutorRef, subjectId, slotNo, schedDate, startTime, intent];
 }
 
 /// The tutor enters the code the tutee was given.

@@ -180,8 +180,13 @@ class _StudentAuthPageState extends State<StudentAuthPage> {
     try {
       final data =
           await _api.post('/api/auth/login', body: {'regNo': regNo}) as Map;
+      if (!mounted) return;
+
       currentSession.value =
           Session.fromJson(Map<String, dynamic>.from(data));
+
+      // Close this form so the shell underneath becomes visible.
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = _clean('$e'));
@@ -368,8 +373,12 @@ class _StudentAuthPageState extends State<StudentAuthPage> {
         'phone': phone,
       }) as Map;
 
+      if (!mounted) return;
+
       currentSession.value =
           Session.fromJson(Map<String, dynamic>.from(data));
+
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = _clean('$e'));

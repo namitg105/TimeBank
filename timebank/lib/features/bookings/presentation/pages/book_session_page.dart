@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_widgets.dart';
+import '../../../auth/session.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../core/network/api_client.dart';
 import '../../domain/usecases/booking_usecases.dart';
 import '../bloc/booking_bloc.dart';
 
@@ -23,9 +26,19 @@ class BookSessionPage extends StatefulWidget {
 class _BookSessionPageState extends State<BookSessionPage> {
   final _formKey = GlobalKey<FormState>();
 
-  final _tuteeId = TextEditingController();
-  final _tutorId = TextEditingController();
-  final _slotNo = TextEditingController(text: '1');
+  /// The other person, as a registration number. Yours is not asked
+  /// for — you are signed in, so the app already knows it.
+  final _otherRef = TextEditingController();
+
+  final ApiClient _api = sl<ApiClient>();
+
+  /// The tutor's published hours. A slot number means nothing on its
+  /// own — it is counted per tutor — so the form fetches the real ones
+  /// and shows them rather than asking anybody to guess.
+  List<dynamic> _slots = [];
+  int? _slotPicked;
+  bool _loadingSlots = false;
+  String? _slotError;
   final _venue = TextEditingController();
 
   /// 'LEARN' = the person booking is the tutee.
@@ -59,7 +72,7 @@ class _BookSessionPageState extends State<BookSessionPage> {
 
   @override
   void dispose() {
-    for (final c in [_tuteeId, _tutorId, _slotNo, _venue]) {
+    for (final c in [_otherRef, _venue]) {
       c.dispose();
     }
     super.dispose();
@@ -112,8 +125,15 @@ class _BookSessionPageState extends State<BookSessionPage> {
                 ],
                 selected: {_intent},
                 showSelectedIcon: false,
-                onSelectionChanged: (set) =>
-                    setState(() => _intent = set.first),
+                onSelectionChanged: (set) {
+                  setState(() {
+                    _intent = set.first;
+                    _slots = [];
+                    _slotPicked = null;
+                    _slotError = null;
+                  });
+                  _loadSlots();
+                },
               ),
               const SizedBox(height: 8),
               InfoBanner(
@@ -126,25 +146,35 @@ class _BookSessionPageState extends State<BookSessionPage> {
                 icon: Icons.account_tree_outlined,
               ),
 
-              const SectionLabel('Who'),
-              Row(
-                children: [
-                  Expanded(
-                    child: _numField(
-                      _intent == 'LEARN' ? _tuteeId : _tutorId,
-                      'Your student id',
-                      hint: '1003',
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _numField(
-                      _intent == 'LEARN' ? _tutorId : _tuteeId,
-                      _intent == 'LEARN' ? "Tutor's id" : "Tutee's id",
-                      hint: _intent == 'LEARN' ? '101' : '102',
-                    ),
-                  ),
-                ],
+              const SectionLabel('Who with'),
+              TextFormField(
+                controller: _otherRef,
+                textCapitalization: TextCapitalization.characters,
+                style: const TextStyle(fontSize: 14.5),
+                decoration: InputDecoration(
+                  labelText: _intent == 'LEARN'
+                      ? "Tutor's registration number"
+                      : "Student's registration number",
+                  hintText: '25BCE1001',
+                ),
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+                onEditingComplete: _loadSlots,
+                onChanged: (_) {
+                  if (_slots.isNotEmpty || _slotError != null) {
+                    setState(() {
+                      _slots = [];
+                      _slotPicked = null;
+                      _slotError = null;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Signed in as ${currentSession.value?.regNo ?? ""}',
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textMuted),
               ),
 
               const SectionLabel('Subject'),
@@ -160,12 +190,7 @@ class _BookSessionPageState extends State<BookSessionPage> {
                 onPick: (d) => setState(() => _date = d),
               ),
               const SizedBox(height: 12),
-              _numField(_slotNo, "The tutor's slot number", hint: '1'),
-              const SizedBox(height: 4),
-              const InfoBanner(
-                'Pick a slot the tutor has published, and a date on the '
-                'right weekday for it.',
-              ),
+              _slotPicker(),
 
               const SizedBox(height: 18),
               _SliderRow(
@@ -222,7 +247,7 @@ class _BookSessionPageState extends State<BookSessionPage> {
                                 color: AppColors.canvas,
                               ),
                             )
-                          : Text('Book and hold '
+                          : Text('Book and set aside '
                               '${_duration.toStringAsFixed(1)} credits'),
                     ),
                   );
@@ -248,6 +273,146 @@ class _BookSessionPageState extends State<BookSessionPage> {
         },
       );
 
+
+  // -------------------------------------------------------------------
+  //  The tutor's published hours
+  // -------------------------------------------------------------------
+
+  /// Whose availability matters: the other person when you are learning,
+  /// yourself when you are teaching.
+  String get _tutorRef => _intent == 'LEARN'
+      ? _otherRef.text.trim().toUpperCase()
+      : (currentSession.value?.regNo ?? '');
+
+  Future<void> _loadSlots() async {
+    final ref = _tutorRef;
+    if (ref.isEmpty) return;
+
+    setState(() {
+      _loadingSlots = true;
+      _slotError = null;
+    });
+
+    try {
+      final data = await _api.get('/api/skills/slots/$ref') as List;
+      if (!mounted) return;
+      setState(() {
+        _slots = data;
+        _slotPicked = data.isEmpty ? null : _slotNoOf(data.first);
+        if (data.isNotEmpty) _applySlot(data.first);
+        _loadingSlots = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final raw = '$e';
+      final i = raw.indexOf(': ');
+      setState(() {
+        _slots = [];
+        _slotPicked = null;
+        _slotError = i > 0 && i < 40 ? raw.substring(i + 2) : raw;
+        _loadingSlots = false;
+      });
+    }
+  }
+
+  static int _slotNoOf(dynamic s) =>
+      (num.tryParse('${s['slotNo']}') ?? 0).toInt();
+
+  static double _numOf(dynamic v) => (num.tryParse('$v') ?? 0).toDouble();
+
+  /// Moves the start time inside the chosen slot, and nudges the date on
+  /// to that slot's weekday, so the form cannot produce a booking the
+  /// database would refuse.
+  void _applySlot(dynamic slot) {
+    final start = _numOf(slot['startTime']);
+    final end = _numOf(slot['endTime']);
+
+    _startTime = start;
+    if (_startTime + _duration > end) {
+      _duration = (end - start) >= 1 ? 1.0 : 0.5;
+    }
+
+    const days = {
+      'MON': DateTime.monday,
+      'TUE': DateTime.tuesday,
+      'WED': DateTime.wednesday,
+      'THU': DateTime.thursday,
+      'FRI': DateTime.friday,
+      'SAT': DateTime.saturday,
+      'SUN': DateTime.sunday,
+    };
+    final want = days[slot['dayOfWeek']?.toString()];
+    if (want != null) {
+      var d = _date ?? DateTime.now().add(const Duration(days: 1));
+      if (d.isBefore(DateTime.now())) {
+        d = DateTime.now().add(const Duration(days: 1));
+      }
+      while (d.weekday != want) {
+        d = d.add(const Duration(days: 1));
+      }
+      _date = d;
+    }
+  }
+
+  Widget _slotPicker() {
+    if (_loadingSlots) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 14),
+        child: Center(
+          child: SizedBox(
+            width: 18, height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_slotError != null) {
+      return InfoBanner(_slotError!,
+          icon: Icons.error_outline, tint: AppColors.negative);
+    }
+
+    if (_slots.isEmpty) {
+      final askedFor = _intent == 'LEARN'
+          ? 'Enter the tutor\'s registration number above to see when '
+            'they are free.'
+          : 'You have not added any free hours yet. Add them on the '
+            'Subjects screen, under My hours.';
+      return InfoBanner(askedFor, icon: Icons.schedule);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'FREE HOURS',
+          style: TextStyle(
+            fontSize: 10.5,
+            letterSpacing: 1.1,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final slot in _slots)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _SlotTile(
+              day: slot['dayOfWeek']?.toString() ?? '',
+              from: _numOf(slot['startTime']),
+              to: _numOf(slot['endTime']),
+              taken: slot['state'] != 'free',
+              selected: _slotPicked == _slotNoOf(slot),
+              onTap: () => setState(() {
+                _slotPicked = _slotNoOf(slot);
+                _applySlot(slot);
+              }),
+            ),
+          ),
+      ],
+    );
+  }
+
   static String _clock(double t) {
     final h = t.floor();
     final m = ((t - h) * 60).round();
@@ -256,6 +421,23 @@ class _BookSessionPageState extends State<BookSessionPage> {
 
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
+
+    final me = currentSession.value?.regNo ?? '';
+    final other = _otherRef.text.trim().toUpperCase();
+
+    if (me.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign in again — your session expired.')),
+      );
+      return;
+    }
+
+    if (_slotPicked == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose one of the free hours.')),
+      );
+      return;
+    }
 
     if (_date == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -266,19 +448,17 @@ class _BookSessionPageState extends State<BookSessionPage> {
 
     context.read<BookingBloc>().add(SessionBooked(
           BookSessionParams(
-            tuteeId: int.parse(_tuteeId.text.trim()),
-            tutorId: int.parse(_tutorId.text.trim()),
+            tuteeRef: _intent == 'LEARN' ? me : other,
+            tutorRef: _intent == 'LEARN' ? other : me,
             subjectId: _subjectId,
-            slotNo: int.parse(_slotNo.text.trim()),
+            slotNo: _slotPicked!,
             schedDate: _date!,
             startTime: _startTime,
             durationHours: _duration,
             mode: _mode,
             venue: _venue.text.trim(),
             intent: _intent,
-            studentId: int.parse(
-              (_intent == 'LEARN' ? _tuteeId : _tutorId).text.trim(),
-            ),
+            studentRef: me,
           ),
         ));
   }
@@ -586,4 +766,82 @@ class _CostSummary extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// One of a tutor's published hours.
+class _SlotTile extends StatelessWidget {
+  final String day;
+  final double from;
+  final double to;
+  final bool taken;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SlotTile({
+    required this.day,
+    required this.from,
+    required this.to,
+    required this.taken,
+    required this.selected,
+    required this.onTap,
+  });
+
+  static const _full = {
+    'MON': 'Monday',
+    'TUE': 'Tuesday',
+    'WED': 'Wednesday',
+    'THU': 'Thursday',
+    'FRI': 'Friday',
+    'SAT': 'Saturday',
+    'SUN': 'Sunday',
+  };
+
+  static String _hhmm(double t) {
+    final h = t.floor();
+    final m = ((t - h) * 60).round();
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.accentWash : AppColors.surface,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: selected ? AppColors.accentDim : AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+                size: 18,
+                color: selected ? AppColors.accent : AppColors.textMuted,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '${_full[day] ?? day}  ·  ${_hhmm(from)} – ${_hhmm(to)}',
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+              if (taken)
+                const Text(
+                  'partly booked',
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
