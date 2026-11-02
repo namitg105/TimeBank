@@ -141,10 +141,10 @@ public final class Database {
         return switch (code) {
             case 1     -> "That value already exists — it has to be unique.";
             case 1400  -> "A required field was left empty.";
-            case 2291  -> "Referenced record does not exist "
-                        + "(foreign key: the tutor, subject or slot is wrong).";
+            case 2291  -> "That tutor, subject or free hour does not exist. "
+                        + "Check what you picked and try again.";
             case 2292  -> "Cannot delete this — other records still point at it.";
-            case 2290  -> "A CHECK constraint rejected that value.";
+            case 2290  -> "One of the values is not allowed. Check the form and try again.";
             case 60    -> "Deadlock: two sessions were waiting on each other. "
                         + "Please try again.";
             default    -> "Database error " + code + ": " + e.getMessage();

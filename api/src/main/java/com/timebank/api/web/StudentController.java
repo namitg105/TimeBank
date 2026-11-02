@@ -97,8 +97,8 @@ public class StudentController {
         return new Responses.Ack(
                 rows > 0,
                 rows > 0
-                    ? "Account closed. Their session history and ledger rows are kept."
-                    : "No change — unknown id, or the account was already inactive.",
+                    ? "Account deactivated. Their past sessions and credits stay on record."
+                    : "No change. That account was already deactivated.",
                 rows);
     }
 

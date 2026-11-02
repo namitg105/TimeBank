@@ -17,7 +17,9 @@ public record Booking(
         String     status,
         BigDecimal creditsHeld,
         String     confirmations,   // e.g. "Y/N"
-        boolean    checkedIn
+        boolean    checkedIn,
+        int        tutorId,         // so the app knows which side the viewer is on
+        int        tuteeId
 ) {
     /** 16.5 -> "16:30". The column stores a decimal hour, not a timestamp. */
     public String clockTime() {

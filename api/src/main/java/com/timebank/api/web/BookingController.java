@@ -110,8 +110,10 @@ public class BookingController {
             throw new IllegalArgumentException("role must be TUTOR or TUTEE");
         }
         dao.confirm(id, role);
-        return new Responses.Ack(true,
-                "Confirmation recorded. Credits move once both sides confirm.", 1);
+        boolean done = "COMPLETED".equals(dao.statusOf(id));
+        return new Responses.Ack(true, done
+                ? "Both sides confirmed. The credits have been paid to the tutor."
+                : "Confirmation recorded. Credits move once the other side confirms.", 1);
     }
 
     /** POST /api/bookings/12/cancel — who cancels, and how late, decides the split. */

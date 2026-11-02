@@ -232,8 +232,10 @@ public class AdminDao {
     public String proveLedgerImmutable() throws SQLException {
         String sql = """
                 UPDATE credit_txn
-                SET    amount = amount + 999
+                SET    amount = amount + 1
                 WHERE  txn_id = (SELECT MIN(txn_id) FROM credit_txn)""";
+        // +1, not a big number: AMOUNT is NUMBER(4,1), and a value that
+        // does not fit fails with ORA-01438 before the trigger even runs.
 
         long t0 = SqlLog.q("MEMBER 4  .  Try to edit the ledger", sql);
 
@@ -251,7 +253,11 @@ public class AdminDao {
             Database.silentRollback(c);
             String msg = Database.explain(e);
             SqlLog.failed(msg, t0);
-            return "Blocked as designed -> " + msg;
+            // Only the trigger's own error proves the point; anything
+            // else means the statement failed for some other reason.
+            return e.getErrorCode() == 20001
+                    ? "Blocked as designed -> " + msg
+                    : "PROBLEM: the update failed for another reason -> " + msg;
         } finally {
             if (c != null) c.close();
         }

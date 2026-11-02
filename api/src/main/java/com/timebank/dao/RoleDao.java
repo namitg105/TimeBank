@@ -203,6 +203,34 @@ public class RoleDao {
     }
 
     /**
+     * Does this tutor already teach this subject?
+     *
+     * <p>Answered from the primary key of TUTOR_SKILL, (tutor_id,
+     * subject_id), so Oracle reads one index entry and never the table.
+     */
+    public boolean teaches(int tutorId, int subjectId) throws SQLException {
+        String sql = """
+                SELECT COUNT(*)
+                FROM   tutor_skill
+                WHERE  tutor_id = ? AND subject_id = ?""";
+
+        long t0 = SqlLog.q("MEMBER 2  .  Does this tutor teach the subject?",
+                sql, tutorId, subjectId);
+
+        try (Connection c = Database.get();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, tutorId);
+            ps.setInt(2, subjectId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                boolean yes = rs.getInt(1) > 0;
+                SqlLog.called(yes ? "yes" : "no", t0);
+                return yes;
+            }
+        }
+    }
+
+    /**
      * Publishes an availability slot.
      *
      * <p>SLOT is a WEAK ENTITY: {@code slot_no} is only a partial key, so
@@ -220,12 +248,20 @@ public class RoleDao {
                         (SELECT NVL(MAX(slot_no),0) + 1 FROM slot WHERE tutor_id = ?),
                         ?, ?, ?)""";
 
-        long t0 = SqlLog.q("MEMBER 2  .  Publish free hours",
-                sql, tutorId, tutorId, dayOfWeek, startTime, endTime);
-
         Connection c = null;
+        long t0 = 0;
         try {
             c = Database.get();
+            lockTutor(c, tutorId);
+            if (overlapsExistingSlot(c, tutorId, dayOfWeek, startTime, endTime)) {
+                Database.silentRollback(c);   // releases the lock
+                throw new IllegalArgumentException(
+                        "Those hours overlap free hours you already have on "
+                      + dayOfWeek + ".");
+            }
+
+            t0 = SqlLog.q("MEMBER 2  .  Publish free hours",
+                    sql, tutorId, tutorId, dayOfWeek, startTime, endTime);
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 ps.setInt(1, tutorId);
                 ps.setInt(2, tutorId);
@@ -243,6 +279,55 @@ public class RoleDao {
             throw e;
         } finally {
             if (c != null) c.close();
+        }
+    }
+
+    /**
+     * Row-locks the tutor until commit or rollback.
+     *
+     * <p>Two "add free hours" clicks arriving together would otherwise
+     * both pass the overlap check and both compute the same MAX + 1.
+     * The second now waits here until the first has committed.
+     */
+    private static void lockTutor(Connection c, int tutorId) throws SQLException {
+        String sql = "SELECT student_id FROM tutor WHERE student_id = ? FOR UPDATE";
+        long t0 = SqlLog.q("MEMBER 2  .  Lock the tutor while adding hours", sql, tutorId);
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, tutorId);
+            try (ResultSet rs = ps.executeQuery()) {
+                SqlLog.rows(rs.next() ? 1 : 0, t0);
+            }
+        }
+    }
+
+    /**
+     * Two ranges overlap when each starts before the other ends, the
+     * same test PKG_TIMEBANK.book_session uses for bookings. A trigger
+     * on SLOT could not run it: it would have to read SLOT itself, and
+     * Oracle raises ORA-04091 (mutating table).
+     */
+    private static boolean overlapsExistingSlot(Connection c, int tutorId,
+            String day, int start, int end) throws SQLException {
+        String sql = """
+                SELECT COUNT(*)
+                FROM   slot
+                WHERE  tutor_id    = ?
+                AND    day_of_week = ?
+                AND    start_time  < ?
+                AND    end_time    > ?""";
+        long t0 = SqlLog.q("MEMBER 2  .  Do the new hours overlap existing ones?",
+                sql, tutorId, day, end, start);
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, tutorId);
+            ps.setString(2, day);
+            ps.setInt(3, end);
+            ps.setInt(4, start);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                boolean overlaps = rs.getInt(1) > 0;
+                SqlLog.called(overlaps ? "yes, overlaps" : "no overlap", t0);
+                return overlaps;
+            }
         }
     }
 

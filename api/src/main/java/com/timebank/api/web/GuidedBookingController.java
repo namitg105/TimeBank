@@ -96,6 +96,20 @@ public class GuidedBookingController {
 
         List<String> steps = new ArrayList<>();
 
+        // When learning, the other person must already teach this subject.
+        // Checked here so the student reads a sentence, not ORA-02291.
+        if (intent.equals("LEARN")) {
+            String who = str(body.get("counterpartId"), "");
+            if (!roles.roleOf(tutorId).isTutor()) {
+                throw new IllegalArgumentException(
+                        who + " is not teaching any subjects yet.");
+            }
+            if (!roles.teaches(tutorId, subjectId)) {
+                throw new IllegalArgumentException(
+                        who + " does not teach that subject.");
+            }
+        }
+
         RoleDao.RoleState before = roles.roleOf(studentId);
         steps.add("Student " + studentId + " was: " + before.label());
 
@@ -111,9 +125,7 @@ public class GuidedBookingController {
             steps.add("Enrolled as a MENTEE (TUTEE row created, tier " + tier + ")");
         }
 
-        if (intent.equals("TEACH") && !before.isTutor()) {
-            String doc = str(body.get("verificationDocNo"),
-                             "SELF-" + studentId);
+        if (intent.equals("TEACH")) {
             String competency = str(body.get("competency"), "PROFICIENT")
                                     .toUpperCase();
             String grade = str(body.get("grade"), "A").toUpperCase();
@@ -122,9 +134,28 @@ public class GuidedBookingController {
                          "BEGINNER", "PROFICIENT", "EXPERT");
             requireOneOf(grade, "grade", "S", "A", "B", "C");
 
-            roles.becomeTutor(studentId, doc, subjectId, competency, grade);
-            steps.add("Enrolled as a MENTOR (TUTOR row created, badge BRONZE, "
-                    + "plus a TUTOR_SKILL row for subject " + subjectId + ")");
+            if (!before.isTutor()) {
+                String doc = str(body.get("verificationDocNo"),
+                                 "SELF-" + studentId);
+                roles.becomeTutor(studentId, doc, subjectId, competency, grade);
+                steps.add("Enrolled as a MENTOR (TUTOR row created, badge BRONZE, "
+                        + "plus a TUTOR_SKILL row for subject " + subjectId + ")");
+            } else if (!roles.teaches(studentId, subjectId)) {
+                // Already a tutor, but not of this subject: record the
+                // skill, otherwise FK_BK_SKILL rejects the booking.
+                roles.addSkill(studentId, subjectId, competency, grade);
+                steps.add("Added subject " + subjectId + " to what this mentor "
+                        + "teaches (TUTOR_SKILL row created)");
+            }
+
+            // The learner must be in TUTEE too, or FK_BK_TUTEE rejects
+            // the booking. Being taught makes them a mentee, so enrol them
+            // the same way a student who books to learn is enrolled.
+            if (!roles.roleOf(tuteeId).isTutee()) {
+                roles.becomeTutee(tuteeId, "BASIC", List.of());
+                steps.add("Enrolled student " + tuteeId
+                        + " as a MENTEE (TUTEE row created, tier BASIC)");
+            }
         }
 
         RoleDao.RoleState after = roles.roleOf(studentId);

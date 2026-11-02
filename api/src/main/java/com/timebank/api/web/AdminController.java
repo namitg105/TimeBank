@@ -63,9 +63,9 @@ public class AdminController {
         return Map.of(
                 "changed", rows,
                 "message", rows > 0
-                    ? "Moved to UNDER_REVIEW."
-                    : "No change -- it was not OPEN. The status guard in the "
-                    + "WHERE clause makes this safe to run twice.");
+                    ? "Marked as being looked into."
+                    : "No change. This complaint was already being looked into "
+                    + "or is closed.");
     }
 
     /**
@@ -94,8 +94,7 @@ public class AdminController {
         String note = String.valueOf(body.getOrDefault("note", "")).trim();
         if (note.isEmpty()) {
             throw new IllegalArgumentException(
-                    "A resolution note is required -- the CHECK constraint on "
-                  + "DISPUTE refuses a RESOLVED row without one.");
+                    "Write a short note explaining the ruling.");
         }
 
         dao.resolve(bookingId, disputeNo, adminId, inFavour, note);
@@ -103,9 +102,8 @@ public class AdminController {
         return Map.of(
                 "resolved", true,
                 "inFavour", inFavour,
-                "message", "Escrow returned and the dispute closed. If a "
-                         + "PENALTY was posted, that is the only way credits "
-                         + "leave the economy -- the audit still balances.");
+                "message", "Complaint closed and the credits settled. "
+                         + "The ruling is saved with the complaint.");
     }
 
     /**
@@ -118,8 +116,17 @@ public class AdminController {
     @PostMapping("/prove-immutable")
     public Map<String, Object> proveImmutable() throws SQLException {
         String result = dao.proveLedgerImmutable();
+        boolean blocked = result.startsWith("Blocked");
         return Map.of(
-                "blocked", result.startsWith("Blocked"),
+                "blocked", blocked,
+                // What the app shows; the technical detail is in "result"
+                // and in the API terminal.
+                "message", blocked
+                        ? "The change was refused. Past credit records can never "
+                        + "be edited; a mistake is fixed by adding a new "
+                        + "correcting entry."
+                        : "Warning: a past credit record could be changed. "
+                        + "Check the API window.",
                 "result", result,
                 "explanation",
                 "TRG_TXN_IMMUTABLE fires BEFORE UPDATE OR DELETE on CREDIT_TXN "

@@ -91,9 +91,8 @@ public class AuthController {
         if (!"ACTIVE".equals(s.accountStatus())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                     "ok", false,
-                    "message", "That account is " + s.accountStatus()
-                             + ". It still exists — closing an account is an "
-                             + "UPDATE, not a DELETE — but it cannot sign in."));
+                    "message", "This account has been deactivated, so it cannot "
+                             + "sign in. Ask the administrator to reactivate it."));
         }
 
         return ResponseEntity.ok(session(s));
@@ -160,9 +159,7 @@ public class AuthController {
 
         Map<String, Object> out = session(s);
         out.put("created", true);
-        out.put("message", "Welcome. You start with 3.0 credits — that row "
-                         + "was written in the same transaction as your "
-                         + "student record.");
+        out.put("message", "Welcome. You start with 3.0 credits.");
 
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }

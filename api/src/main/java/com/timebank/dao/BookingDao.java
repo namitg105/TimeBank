@@ -152,6 +152,23 @@ public class BookingDao {
                 "BEGIN pkg_timebank.confirm_session(?, ?); END;", bookingId, role);
     }
 
+    /** The booking's current status, e.g. COMPLETED once both sides confirmed. */
+    public String statusOf(int bookingId) throws SQLException {
+        String sql = "SELECT status FROM booking WHERE booking_id = ?";
+
+        long t0 = SqlLog.q("MEMBER 3  .  Read the booking status", sql, bookingId);
+
+        try (Connection c = Database.get();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, bookingId);
+            try (ResultSet rs = ps.executeQuery()) {
+                String status = rs.next() ? rs.getString(1) : null;
+                SqlLog.called("status = " + status, t0);
+                return status;
+            }
+        }
+    }
+
     /** Cancels. Who cancels, and how late, decides where the escrow goes. */
     public void cancel(int bookingId, String byRole) throws SQLException {
         callOneArg("BookingDao.cancel  (who cancels, and how late, decides"
@@ -260,7 +277,8 @@ public class BookingDao {
                    b.sched_date, b.sched_start_time, b.duration_hours,
                    b.session_mode, b.venue, b.status, b.credits_held,
                    b.confirm_by_tutor || '/' || b.confirm_by_tutee AS confirms,
-                   b.check_in_at
+                   b.check_in_at,
+                   b.tutor_id, b.tutee_id
             FROM   booking b
                    JOIN student tr  ON tr.student_id  = b.tutor_id
                    JOIN student te  ON te.student_id  = b.tutee_id
@@ -298,7 +316,9 @@ public class BookingDao {
                             rs.getString("status"),
                             rs.getBigDecimal("credits_held"),
                             rs.getString("confirms"),
-                            rs.getTimestamp("check_in_at") != null));
+                            rs.getTimestamp("check_in_at") != null,
+                            rs.getInt("tutor_id"),
+                            rs.getInt("tutee_id")));
                 }
                 SqlLog.rows(out.size(), t0);
                 return out;
