@@ -8,7 +8,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.sql.SQLException;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,91 +69,85 @@ public class GuidedBookingController {
     public ResponseEntity<Map<String, Object>> guided(
             @RequestBody Map<String, Object> body) throws SQLException {
 
+        // -------------------------------------------------------------
+        //  1. Check EVERYTHING first. Nothing below this block may fail
+        //     on bad input, so a refused booking never leaves a new role
+        //     behind.
+        // -------------------------------------------------------------
         // Either field may be a registration number or a bare id -- the
         // registration number is the one people actually know.
-        Integer studentId     = StudentLookup.resolve(
-                                    str(body.get("studentId"), null));
-        Integer counterpartId = StudentLookup.resolve(
-                                    str(body.get("counterpartId"), null));
-        Integer subjectId     = intOf(body.get("subjectId"), "subjectId");
-        Integer slotNo        = intOf(body.get("slotNo"),    "slotNo");
+        int studentId = StudentLookup.resolve(Input.text(body.get("studentId")));
+        String who = Input.required(body.get("counterpartId"),
+                "Enter the other person's registration number.");
+        int counterpartId = StudentLookup.resolve(who);
 
-        String intent = str(body.get("intent"), "LEARN").toUpperCase();
-        if (!intent.equals("LEARN") && !intent.equals("TEACH")) {
-            throw new IllegalArgumentException(
-                    "intent must be LEARN or TEACH.");
+        String intent = Input.text(body.get("intent")) == null ? "LEARN"
+                : Input.oneOf(body.get("intent"),
+                        "Choose whether you are learning or teaching.", "LEARN", "TEACH");
+
+        if (studentId == counterpartId) {
+            throw new IllegalArgumentException("You cannot book a session with yourself.");
         }
 
-        if (studentId.equals(counterpartId)) {
-            throw new IllegalArgumentException(
-                    "You cannot book a session with yourself.");
-        }
+        StudentLookup.requireActive(studentId,
+                "Your account has been deactivated, so you cannot book.");
+        StudentLookup.requireActive(counterpartId,
+                who + "'s account has been deactivated, so they cannot be booked.");
+
+        SessionDetails d = SessionDetails.from(body);
 
         // Who sits on which side of the session.
         int tuteeId = intent.equals("LEARN") ? studentId : counterpartId;
         int tutorId = intent.equals("LEARN") ? counterpartId : studentId;
 
-        List<String> steps = new ArrayList<>();
-
         // When learning, the other person must already teach this subject.
-        // Checked here so the student reads a sentence, not ORA-02291.
         if (intent.equals("LEARN")) {
-            String who = str(body.get("counterpartId"), "");
             if (!roles.roleOf(tutorId).isTutor()) {
                 throw new IllegalArgumentException(
                         who + " is not teaching any subjects yet.");
             }
-            if (!roles.teaches(tutorId, subjectId)) {
+            if (!roles.teaches(tutorId, d.subjectId())) {
                 throw new IllegalArgumentException(
                         who + " does not teach that subject.");
             }
         }
 
+        String level = TeachingRules.level(body);
+        String grade = TeachingRules.grade(body);
+
+        // -------------------------------------------------------------
+        //  2. Enrol into whichever subclass this intent needs.
+        //     Nothing is removed -- that is what "overlapping" means.
+        // -------------------------------------------------------------
+        List<String> steps = new ArrayList<>();
         RoleDao.RoleState before = roles.roleOf(studentId);
         steps.add("Student " + studentId + " was: " + before.label());
 
-        // -------------------------------------------------------------
-        //  Enrol into whichever subclass this intent needs.
-        //  Nothing is removed -- that is what "overlapping" means.
-        // -------------------------------------------------------------
         if (intent.equals("LEARN") && !before.isTutee()) {
-            String tier = str(body.get("needTier"), "BASIC").toUpperCase();
-            requireOneOf(tier, "needTier", "BASIC", "INTERMEDIATE", "ADVANCED");
-
-            roles.becomeTutee(studentId, tier, bands(body.get("timeBands")));
-            steps.add("Enrolled as a MENTEE (TUTEE row created, tier " + tier + ")");
+            roles.becomeTutee(studentId, "BASIC", List.of());
+            steps.add("Enrolled as a learner (TUTEE row created, tier BASIC)");
         }
 
         if (intent.equals("TEACH")) {
-            String competency = str(body.get("competency"), "PROFICIENT")
-                                    .toUpperCase();
-            String grade = str(body.get("grade"), "A").toUpperCase();
-
-            requireOneOf(competency, "competency",
-                         "BEGINNER", "PROFICIENT", "EXPERT");
-            requireOneOf(grade, "grade", "S", "A", "B", "C");
-
             if (!before.isTutor()) {
-                String doc = str(body.get("verificationDocNo"),
-                                 "SELF-" + studentId);
-                roles.becomeTutor(studentId, doc, subjectId, competency, grade);
-                steps.add("Enrolled as a MENTOR (TUTOR row created, badge BRONZE, "
-                        + "plus a TUTOR_SKILL row for subject " + subjectId + ")");
-            } else if (!roles.teaches(studentId, subjectId)) {
+                roles.becomeTutor(studentId, "SELF-" + studentId,
+                        d.subjectId(), level, grade);
+                steps.add("Enrolled as a tutor (TUTOR row created, badge BRONZE, "
+                        + "plus a TUTOR_SKILL row for subject " + d.subjectId() + ")");
+            } else if (!roles.teaches(studentId, d.subjectId())) {
                 // Already a tutor, but not of this subject: record the
                 // skill, otherwise FK_BK_SKILL rejects the booking.
-                roles.addSkill(studentId, subjectId, competency, grade);
-                steps.add("Added subject " + subjectId + " to what this mentor "
-                        + "teaches (TUTOR_SKILL row created)");
+                roles.addSkill(studentId, d.subjectId(), level, grade);
+                steps.add("Added subject " + d.subjectId()
+                        + " to what this tutor teaches (TUTOR_SKILL row created)");
             }
 
             // The learner must be in TUTEE too, or FK_BK_TUTEE rejects
-            // the booking. Being taught makes them a mentee, so enrol them
-            // the same way a student who books to learn is enrolled.
+            // the booking. Being taught makes them a learner.
             if (!roles.roleOf(tuteeId).isTutee()) {
                 roles.becomeTutee(tuteeId, "BASIC", List.of());
                 steps.add("Enrolled student " + tuteeId
-                        + " as a MENTEE (TUTEE row created, tier BASIC)");
+                        + " as a learner (TUTEE row created, tier BASIC)");
             }
         }
 
@@ -164,93 +157,34 @@ public class GuidedBookingController {
         }
 
         // -------------------------------------------------------------
-        //  Book it. Every rule that matters lives in the package and in
-        //  the triggers, so nothing is re-checked here.
+        //  3. Book it. The free hour, weekday, credits, clashes and the
+        //     weekly limit are checked inside PKG_TIMEBANK under a lock.
         // -------------------------------------------------------------
-        var result = bookings.book(
-                tuteeId, tutorId, subjectId, slotNo,
-                LocalDate.parse(str(body.get("schedDate"), null)),
-                dbl(body.get("startTime"), "startTime"),
-                dbl(body.get("durationHours"), "durationHours"),
-                str(body.get("mode"), "ONLINE").toUpperCase(),
-                str(body.get("venue"), null));
+        var result = bookings.book(tuteeId, tutorId, d.subjectId(), d.slotNo(),
+                d.date(), d.startTime(), d.durationHours(), d.mode(), d.venue());
 
         steps.add("Booking " + result.bookingId()
-                + " created and the credits moved into escrow");
+                + " created and the credits set aside (HOLD)");
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("bookingId",   result.bookingId());
-        out.put("sessionCode", result.sessionCode());
+        // A tutor may create a booking for a learner, but must not learn
+        // the code in doing so. The learner receives it from their own
+        // Sessions list, where BookingDao selects it only for that side.
+        if (studentId == tuteeId) {
+            out.put("sessionCode", result.sessionCode());
+        }
         out.put("tuteeId",     tuteeId);
         out.put("tutorId",     tutorId);
         out.put("roleBefore",  before.label());
         out.put("roleAfter",   after.label());
         out.put("steps",       steps);
         out.put("message", intent.equals("LEARN")
-                ? "Booked as the learner. Keep the session code -- the tutor "
-                + "has to type it in to prove you turned up."
-                : "Booked as the teacher. The tutee has a session code; "
-                + "ask for it at the start of the session.");
+                ? "Booked. Keep the session code: you read it to the tutor "
+                + "when you meet."
+                : "Booked. The learner has a session code; ask for it when "
+                + "you meet.");
 
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
-    }
-
-    // -----------------------------------------------------------------
-
-    @SuppressWarnings("unchecked")
-    private static List<String> bands(Object raw) {
-        if (!(raw instanceof List<?> list)) {
-            return List.of();
-        }
-        List<String> out = new ArrayList<>();
-        for (Object o : list) {
-            String b = String.valueOf(o).trim().toUpperCase();
-            requireOneOf(b, "timeBand",
-                         "MORNING", "AFTERNOON", "EVENING", "NIGHT");
-            out.add(b);
-        }
-        return out;
-    }
-
-    private static String str(Object o, String fallback) {
-        if (o == null) {
-            return fallback;
-        }
-        String s = String.valueOf(o).trim();
-        return s.isEmpty() ? fallback : s;
-    }
-
-    private static Integer intOf(Object o, String field) {
-        if (o instanceof Number n) {
-            return n.intValue();
-        }
-        try {
-            return Integer.valueOf(String.valueOf(o).trim());
-        } catch (Exception e) {
-            throw new IllegalArgumentException(field + " is required.");
-        }
-    }
-
-    private static double dbl(Object o, String field) {
-        if (o instanceof Number n) {
-            return n.doubleValue();
-        }
-        try {
-            return Double.parseDouble(String.valueOf(o).trim());
-        } catch (Exception e) {
-            throw new IllegalArgumentException(field + " is required.");
-        }
-    }
-
-    private static void requireOneOf(String value, String field,
-                                     String... allowed) {
-        for (String a : allowed) {
-            if (a.equals(value)) {
-                return;
-            }
-        }
-        throw new IllegalArgumentException(
-                field + " must be one of " + String.join(", ", allowed)
-              + " (got " + value + ").");
     }
 }

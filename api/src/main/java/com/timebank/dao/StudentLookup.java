@@ -46,7 +46,7 @@ public final class StudentLookup {
                 return id;
             }
             throw new IllegalArgumentException(
-                    "There is no student " + s + ".");
+                    "No student is registered as " + s + ".");
         }
 
         String sql = """
@@ -74,6 +74,30 @@ public final class StudentLookup {
                             + ", student " + id, t0);
                 return id;
             }
+        }
+    }
+
+    /** Fails with {@code message} when the account has been deactivated. */
+    public static void requireActive(int studentId, String message) throws SQLException {
+        String sql = "SELECT account_status FROM student WHERE student_id = ?";
+        try (Connection c = Database.get();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new IllegalArgumentException("That student does not exist.");
+                }
+                if (!"ACTIVE".equals(rs.getString(1))) {
+                    throw new IllegalArgumentException(message);
+                }
+            }
+        }
+    }
+
+    /** Fails with a sentence when there is no such student. */
+    public static void requireExists(int studentId) throws SQLException {
+        if (!exists(studentId)) {
+            throw new IllegalArgumentException("That student does not exist.");
         }
     }
 

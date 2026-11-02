@@ -9,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.sql.SQLException;
-import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +72,7 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> login(
             @RequestBody Map<String, String> body) throws SQLException {
 
-        String regNo = trim(body.get("regNo"));
+        String regNo = Input.text(body.get("regNo"));
         if (regNo == null) {
             throw new IllegalArgumentException(
                     "Enter your registration number.");
@@ -115,47 +114,26 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> signup(
             @RequestBody Map<String, Object> body) throws SQLException {
 
-        String regNo     = trim(body.get("regNo"));
-        String firstName = trim(body.get("firstName"));
-        String lastName  = trim(body.get("lastName"));
-        String email     = trim(body.get("email"));
-        String dob       = trim(body.get("dob"));
+        // Everything is checked before the first INSERT, so a bad phone
+        // can no longer leave a half-created account behind.
+        Input.NewStudent in = Input.newStudent(body);
 
-        if (regNo == null || firstName == null || lastName == null) {
-            throw new IllegalArgumentException(
-                    "Registration number and both names are required.");
-        }
-        if (email == null || !email.contains("@")) {
-            throw new IllegalArgumentException(
-                    "A valid email address is required.");
-        }
-        if (dob == null) {
-            throw new IllegalArgumentException("Date of birth is required.");
-        }
-
-        if (auth.regNoExists(regNo)) {
+        if (auth.regNoExists(in.regNo())) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
                     "ok", false,
-                    "message", regNo + " is already registered. Sign in "
-                             + "instead — UQ_STUDENT_REG allows only one "
-                             + "student per registration number."));
+                    "message", in.regNo() + " is already registered. "
+                             + "Sign in instead."));
         }
-
-        int deptId = intOr(body.get("deptId"), 1);
 
         int id = students.register(
-                regNo, firstName, lastName, email,
-                LocalDate.parse(dob), deptId,
-                trim(body.get("block")),
-                trim(body.get("roomNo")),
-                trim(body.get("city")));
+                in.regNo(), in.firstName(), in.lastName(), in.email(),
+                in.dob(), in.deptId(), in.block(), in.roomNo(), in.city());
 
-        String phone = trim(body.get("phone"));
-        if (phone != null) {
-            students.addPhone(id, phone);
+        if (in.phone() != null) {
+            students.addPhone(id, in.phone());
         }
 
-        AuthDao.Session s = auth.signIn(regNo);
+        AuthDao.Session s = auth.signIn(in.regNo());
 
         Map<String, Object> out = session(s);
         out.put("created", true);
@@ -179,8 +157,12 @@ public class AuthController {
     public ResponseEntity<Map<String, Object>> adminLogin(
             @RequestBody Map<String, String> body) {
 
-        String u = trim(body.get("username"));
-        String p = trim(body.get("password"));
+        String u = Input.text(body.get("username"));
+        String p = Input.text(body.get("password"));
+
+        if (u == null || p == null) {
+            throw new IllegalArgumentException("Enter the username and the password.");
+        }
 
         if (!adminUsername.equalsIgnoreCase(u == null ? "" : u)
                 || !adminPassword.equals(p == null ? "" : p)) {
@@ -220,24 +202,5 @@ public class AuthController {
         out.put("badgeLevel", s.badgeLevel() == null ? "" : s.badgeLevel());
         out.put("needTier", s.needTier() == null ? "" : s.needTier());
         return out;
-    }
-
-    private static String trim(Object o) {
-        if (o == null) {
-            return null;
-        }
-        String s = String.valueOf(o).trim();
-        return s.isEmpty() ? null : s;
-    }
-
-    private static int intOr(Object o, int fallback) {
-        if (o instanceof Number n) {
-            return n.intValue();
-        }
-        try {
-            return Integer.parseInt(String.valueOf(o).trim());
-        } catch (Exception e) {
-            return fallback;
-        }
     }
 }

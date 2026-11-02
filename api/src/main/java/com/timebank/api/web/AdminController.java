@@ -48,8 +48,7 @@ public class AdminController {
                  ? null : status.trim().toUpperCase();
 
         if (s != null && !List.of("OPEN", "UNDER_REVIEW", "RESOLVED").contains(s)) {
-            throw new IllegalArgumentException(
-                    "status must be OPEN, UNDER_REVIEW or RESOLVED.");
+            throw new IllegalArgumentException("Pick one of the complaint filters.");
         }
         return dao.disputes(s);
     }
@@ -59,13 +58,14 @@ public class AdminController {
     public Map<String, Object> triage(@PathVariable int bookingId,
                                       @PathVariable int disputeNo)
             throws SQLException {
+        String status = statusOf(bookingId, disputeNo);
+        if (!"OPEN".equals(status)) {
+            throw new IllegalArgumentException("RESOLVED".equals(status)
+                    ? "This complaint has already been closed."
+                    : "This complaint is already being looked into.");
+        }
         int rows = dao.triage(bookingId, disputeNo);
-        return Map.of(
-                "changed", rows,
-                "message", rows > 0
-                    ? "Marked as being looked into."
-                    : "No change. This complaint was already being looked into "
-                    + "or is closed.");
+        return Map.of("changed", rows, "message", "Marked as being looked into.");
     }
 
     /**
@@ -79,23 +79,15 @@ public class AdminController {
                                        @RequestBody Map<String, Object> body)
             throws SQLException {
 
-        Integer adminId = intOrNull(body.get("adminId"));
-        if (adminId == null) {
-            throw new IllegalArgumentException(
-                    "adminId is required -- a resolved dispute must name who ruled on it.");
-        }
+        int adminId = Input.integer(body.get("adminId"),
+                "Pick whose name the ruling is recorded under.");
+        String inFavour = Input.oneOf(body.get("inFavour"),
+                "Say who the ruling favours: the tutor or the learner.", "TUTOR", "TUTEE");
+        String note = Input.maxLength(
+                Input.required(body.get("note"), "Write a short note explaining the ruling."),
+                400, "Ruling note");
 
-        String inFavour = String.valueOf(body.getOrDefault("inFavour", ""))
-                                .trim().toUpperCase();
-        if (!inFavour.equals("TUTOR") && !inFavour.equals("TUTEE")) {
-            throw new IllegalArgumentException("inFavour must be TUTOR or TUTEE.");
-        }
-
-        String note = String.valueOf(body.getOrDefault("note", "")).trim();
-        if (note.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "Write a short note explaining the ruling.");
-        }
+        statusOf(bookingId, disputeNo);   // fails with a sentence if it is not there
 
         dao.resolve(bookingId, disputeNo, adminId, inFavour, note);
 
@@ -136,17 +128,12 @@ public class AdminController {
               + "closed-economy audit mean anything.");
     }
 
-    private static Integer intOrNull(Object o) {
-        if (o == null) {
-            return null;
-        }
-        if (o instanceof Number n) {
-            return n.intValue();
-        }
-        try {
-            return Integer.valueOf(String.valueOf(o).trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
+    /** The complaint's status; fails with a sentence when there is no such complaint. */
+    private String statusOf(int bookingId, int disputeNo) throws SQLException {
+        return dao.disputes(null).stream()
+                .filter(d -> d.bookingId() == bookingId && d.disputeNo() == disputeNo)
+                .map(AdminDao.Dispute::status)
+                .findFirst().orElseThrow(() ->
+                        new IllegalArgumentException("That complaint does not exist."));
     }
 }

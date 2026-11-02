@@ -1,6 +1,5 @@
 package com.timebank.api.web;
 
-import com.timebank.api.dto.Requests;
 import com.timebank.api.dto.Responses;
 import com.timebank.dao.BookingDao;
 import com.timebank.model.Booking;
@@ -9,8 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.sql.SQLException;
-import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Members 2 and 3 over HTTP: the booking engine and escrow.
@@ -50,46 +49,41 @@ public class BookingController {
     }
 
     /**
-     * POST /api/bookings — book a session.
+     * POST /api/bookings — book a session by ids.
      *
-     * <p>The response carries the session code. That code goes to the
-     * TUTEE only: the tutor types it in at the start of the session,
-     * which is what proves the tutee actually turned up. Without a
-     * check-in the confirmation trigger refuses to complete the session,
-     * so a tutor cannot claim credits for a no-show.
+     * <p>The code is never returned from this generic endpoint. The
+     * learner retrieves it from their own session list, while the tutor
+     * sees only the check-in prompt. That keeps this lower-level endpoint
+     * consistent with the guided booking flow as well.
      */
     @PostMapping
     public ResponseEntity<Responses.BookingCreated> book(
-            @RequestBody Requests.BookSession req) throws SQLException {
+            @RequestBody Map<String, Object> body) throws SQLException {
 
-        if (req.tuteeId() == req.tutorId()) {
-            throw new IllegalArgumentException(
-                    "A student cannot book a session with themselves.");
-        }
+        int tuteeId = Input.integer(body.get("tuteeId"), "Pick the learner.");
+        int tutorId = Input.integer(body.get("tutorId"), "Pick the tutor.");
+        SessionDetails d = SessionDetails.from(body);
 
-        var result = dao.book(
-                req.tuteeId(), req.tutorId(), req.subjectId(), req.slotNo(),
-                LocalDate.parse(req.schedDate()), req.startTime(),
-                req.durationHours(),
-                req.mode() == null ? "ONLINE" : req.mode().toUpperCase(),
-                req.venue());
+        var result = dao.book(tuteeId, tutorId, d.subjectId(), d.slotNo(),
+                d.date(), d.startTime(), d.durationHours(), d.mode(), d.venue());
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 new Responses.BookingCreated(
                         result.bookingId(),
-                        result.sessionCode(),
-                        req.durationHours(),
-                        "Give this code to the tutee only. "
-                      + req.durationHours() + " credits are now held in escrow "
-                      + "and reach the tutor only when both sides confirm."));
+                        null,
+                        d.durationHours(),
+                        "Booked. The learner can find the session code in their "
+                      + "Sessions list."));
     }
 
-    /** POST /api/bookings/12/checkin — the tutor enters the tutee's code. */
+    /** POST /api/bookings/12/checkin — the tutor enters the learner's code. */
     @PostMapping("/{id}/checkin")
     public Responses.Ack checkIn(@PathVariable int id,
-                                 @RequestBody Requests.CheckIn req)
+                                 @RequestBody Map<String, Object> body)
             throws SQLException {
-        dao.checkIn(id, req.sessionCode().trim().toUpperCase());
+        String code = Input.required(body.get("sessionCode"),
+                "Enter the session code.").toUpperCase();
+        dao.checkIn(id, code);
         return new Responses.Ack(true,
                 "Checked in. The session can now be confirmed.", 1);
     }
@@ -97,18 +91,16 @@ public class BookingController {
     /**
      * POST /api/bookings/12/confirm — one side says it happened.
      *
-     * <p>Credits move only once BOTH sides have confirmed. The tutee was
+     * <p>Credits move only once BOTH sides have confirmed. The learner was
      * already debited by the HOLD at booking time, so completion writes
      * a single positive TRANSFER to the tutor — never a second debit.
      */
     @PostMapping("/{id}/confirm")
     public Responses.Ack confirm(@PathVariable int id,
-                                 @RequestBody Requests.Confirm req)
+                                @RequestBody Map<String, Object> body)
             throws SQLException {
-        String role = req.role().trim().toUpperCase();
-        if (!role.equals("TUTOR") && !role.equals("TUTEE")) {
-            throw new IllegalArgumentException("role must be TUTOR or TUTEE");
-        }
+        String role = Input.oneOf(body.get("role"),
+                "Say who is confirming: the tutor or the learner.", "TUTOR", "TUTEE");
         dao.confirm(id, role);
         boolean done = "COMPLETED".equals(dao.statusOf(id));
         return new Responses.Ack(true, done
@@ -116,15 +108,31 @@ public class BookingController {
                 : "Confirmation recorded. Credits move once the other side confirms.", 1);
     }
 
-    /** POST /api/bookings/12/cancel — who cancels, and how late, decides the split. */
+    /**
+     * POST /api/bookings/12/cancel — who cancels, and how late, decides
+     * the split. The reply says what actually happened to the credits.
+     */
     @PostMapping("/{id}/cancel")
     public Responses.Ack cancel(@PathVariable int id,
-                                @RequestBody Requests.Cancel req)
+                                @RequestBody Map<String, Object> body)
             throws SQLException {
-        dao.cancel(id, req.byRole().trim().toUpperCase());
-        return new Responses.Ack(true,
-                "Cancelled. Tutor cancels or tutee cancels early: all credits "
-              + "returned. Tutee cancels inside 24 hours: split with the tutor.", 1);
+        String byRole = Input.oneOf(body.get("byRole"),
+                "Say who is cancelling: the tutor or the learner.", "TUTOR", "TUTEE");
+        dao.cancel(id, byRole);
+
+        BookingDao.CancelOutcome out = dao.cancelOutcome(id);
+        String message = out.paidToTutor() > 0
+                ? "Session cancelled. " + credits(out.returnedToLearner())
+                  + " returned to the learner and " + credits(out.paidToTutor())
+                  + " paid to the tutor, because it was cancelled less than "
+                  + "a day before."
+                : "Session cancelled. " + credits(out.returnedToLearner())
+                  + " returned to the learner.";
+        return new Responses.Ack(true, message, 1);
+    }
+
+    private static String credits(double n) {
+        return String.format("%.1f credit%s", n, n == 1.0 ? "" : "s");
     }
 
     /**

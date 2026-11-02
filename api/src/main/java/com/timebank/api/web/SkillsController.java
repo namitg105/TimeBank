@@ -62,41 +62,39 @@ public class SkillsController {
         return skills.slotsOf(StudentLookup.resolve(ref));
     }
 
-    /** POST /api/skills/slots/101 — publish a slot. */
+    /** POST /api/skills/slots/101 — publish free hours. */
     @PostMapping("/slots/{tutorId}")
     public Map<String, Object> addSlot(@PathVariable int tutorId,
                                        @RequestBody Map<String, Object> body)
             throws SQLException {
-
-        String day = str(body.get("dayOfWeek"), "").toUpperCase();
-        oneOf(day, "dayOfWeek", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
-
-        int start = intOf(body.get("startTime"), "startTime");
-        int end   = intOf(body.get("endTime"), "endTime");
-        if (end <= start) {
-            throw new IllegalArgumentException(
-                    "The slot has to end after it starts — CHK_SLOT_ORDER "
-                  + "would refuse it anyway.");
-        }
-
-        roles.addSlot(tutorId, day, start, end);
-        return Map.of("added", true, "dayOfWeek", day,
-                      "startTime", start, "endTime", end);
+        return TeachingRules.addSlot(roles, tutorId, body);
     }
 
-    /** DELETE /api/skills/slots/101/2 — withdraw a slot. */
+    /**
+     * DELETE /api/skills/slots/101/2 — withdraw free hours.
+     *
+     * <p>Only hours nobody has ever booked can go. Every BOOKING row
+     * points at its slot through FK_BK_SLOT, finished and cancelled ones
+     * included, so removing a slot with history would orphan it.
+     */
     @DeleteMapping("/slots/{tutorId}/{slotNo}")
     public Map<String, Object> removeSlot(@PathVariable int tutorId,
                                           @PathVariable int slotNo)
             throws SQLException {
+        StudentLookup.requireExists(tutorId);
+        boolean exists = skills.slotsOf(tutorId).stream()
+                .anyMatch(s -> ((Number) s.get("slotNo")).intValue() == slotNo);
+        if (!exists) {
+            throw new IllegalArgumentException("Those free hours no longer exist.");
+        }
+
         int n = skills.removeSlot(tutorId, slotNo);
-        return Map.of(
-                "removed", n,
-                "message", n > 0
-                    ? "Slot withdrawn."
-                    : "Not removed — either there is no such slot, or a "
-                    + "session is already booked against it and FK_BK_SLOT "
-                    + "protects it.");
+        if (n == 0) {
+            throw new IllegalArgumentException(
+                    "These hours have sessions on record, past or upcoming, "
+                  + "so they stay. You can add new hours instead.");
+        }
+        return Map.of("removed", n, "message", "Free hours removed.");
     }
 
     /** POST /api/skills/101 — register a subject this tutor can teach. */
@@ -104,16 +102,9 @@ public class SkillsController {
     public Map<String, Object> addSkill(@PathVariable int tutorId,
                                         @RequestBody Map<String, Object> body)
             throws SQLException {
-
-        int subjectId = intOf(body.get("subjectId"), "subjectId");
-        String level  = str(body.get("competency"), "PROFICIENT").toUpperCase();
-        String grade  = str(body.get("grade"), "A").toUpperCase();
-
-        oneOf(level, "competency", "BEGINNER", "PROFICIENT", "EXPERT");
-        oneOf(grade, "grade", "S", "A", "B", "C");
-
-        roles.addSkill(tutorId, subjectId, level, grade);
-        return Map.of("added", true, "subjectId", subjectId);
+        int subjectId = TeachingRules.addSkill(roles, tutorId, body);
+        return Map.of("added", true, "subjectId", subjectId,
+                      "message", "Subject added.");
     }
 
     /** PUT /api/skills/101/104 — change a competency level. */
@@ -123,45 +114,14 @@ public class SkillsController {
             @PathVariable int subjectId,
             @RequestBody Map<String, Object> body) throws SQLException {
 
-        String level = str(body.get("competency"), "PROFICIENT").toUpperCase();
-        String grade = str(body.get("grade"), "A").toUpperCase();
-
-        oneOf(level, "competency", "BEGINNER", "PROFICIENT", "EXPERT");
-        oneOf(grade, "grade", "S", "A", "B", "C");
-
-        int n = skills.setCompetency(tutorId, subjectId, level, grade);
-        return Map.of("changed", n);
-    }
-
-    // -----------------------------------------------------------------
-
-    private static String str(Object o, String fallback) {
-        if (o == null) {
-            return fallback;
+        TeachingRules.requireTutor(roles, tutorId,
+                "You need to be a tutor before changing a subject level.");
+        if (!roles.teaches(tutorId, subjectId)) {
+            throw new IllegalArgumentException("You do not teach that subject yet.");
         }
-        String s = String.valueOf(o).trim();
-        return s.isEmpty() ? fallback : s;
-    }
 
-    private static int intOf(Object o, String field) {
-        if (o instanceof Number n) {
-            return n.intValue();
-        }
-        try {
-            return Integer.parseInt(String.valueOf(o).trim());
-        } catch (Exception e) {
-            throw new IllegalArgumentException(field + " is required.");
-        }
-    }
-
-    private static void oneOf(String v, String field, String... allowed) {
-        for (String a : allowed) {
-            if (a.equals(v)) {
-                return;
-            }
-        }
-        throw new IllegalArgumentException(
-                field + " must be one of " + String.join(", ", allowed)
-              + " (got " + v + ").");
+        int n = skills.setCompetency(tutorId, subjectId,
+                TeachingRules.level(body), TeachingRules.grade(body));
+        return Map.of("changed", n, "message", "Level updated.");
     }
 }

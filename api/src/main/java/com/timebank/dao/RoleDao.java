@@ -74,7 +74,7 @@ public class RoleDao {
                 if (!rs.next()) {
                     SqlLog.rows(0, t0);
                     throw new IllegalArgumentException(
-                            "No student with id " + studentId + ".");
+                            "That student does not exist.");
                 }
                 RoleState st = new RoleState(
                         rs.getInt("is_tutor") == 1,
@@ -257,7 +257,7 @@ public class RoleDao {
                 Database.silentRollback(c);   // releases the lock
                 throw new IllegalArgumentException(
                         "Those hours overlap free hours you already have on "
-                      + dayOfWeek + ".");
+                      + dayName(dayOfWeek) + "s.");
             }
 
             t0 = SqlLog.q("MEMBER 2  .  Publish free hours",
@@ -306,6 +306,19 @@ public class RoleDao {
      * on SLOT could not run it: it would have to read SLOT itself, and
      * Oracle raises ORA-04091 (mutating table).
      */
+    /** MON -> Monday, for messages. */
+    private static String dayName(String day) {
+        return switch (day) {
+            case "MON" -> "Monday";
+            case "TUE" -> "Tuesday";
+            case "WED" -> "Wednesday";
+            case "THU" -> "Thursday";
+            case "FRI" -> "Friday";
+            case "SAT" -> "Saturday";
+            default    -> "Sunday";
+        };
+    }
+
     private static boolean overlapsExistingSlot(Connection c, int tutorId,
             String day, int start, int end) throws SQLException {
         String sql = """

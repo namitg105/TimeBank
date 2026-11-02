@@ -1,13 +1,14 @@
 package com.timebank.api.web;
 
-import com.timebank.api.dto.Requests;
 import com.timebank.api.dto.Responses;
 import com.timebank.dao.LedgerDao;
+import com.timebank.dao.StudentLookup;
 import com.timebank.model.LedgerEntry;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,7 @@ public class LedgerController {
      */
     @GetMapping("/student/{id}")
     public List<LedgerEntry> passbook(@PathVariable int id) throws SQLException {
+        StudentLookup.requireExists(id);
         return dao.passbook(id);
     }
 
@@ -67,18 +69,35 @@ public class LedgerController {
      */
     @PostMapping("/adjustments")
     public ResponseEntity<Map<String, Object>> adjust(
-            @RequestBody Requests.Adjustment req) throws SQLException {
+            @RequestBody Map<String, Object> body) throws SQLException {
 
-        String type = req.type().trim().toUpperCase();
-        if (!type.equals("GRANT") && !type.equals("PENALTY")) {
-            throw new IllegalArgumentException("type must be GRANT or PENALTY");
+        int studentId = Input.integer(body.get("studentId"), "Pick a student.");
+        StudentLookup.requireExists(studentId);
+
+        String type = Input.oneOf(body.get("type"),
+                "Choose whether to add credits or take them away.", "GRANT", "PENALTY");
+
+        double amount = Input.decimal(body.get("amount"), "Enter an amount.");
+        // A grant adds and a penalty takes away (CHK_TXN_SIGN); one
+        // decimal place and at most 50 keeps it inside NUMBER(4,1).
+        if (amount == 0 || Math.abs(amount) > 50
+                || Math.abs(amount * 10 - Math.rint(amount * 10)) > 1e-9) {
+            throw new IllegalArgumentException(
+                    "Enter an amount between 0.1 and 50, with at most one decimal place.");
+        }
+        if (type.equals("GRANT") && amount < 0 || type.equals("PENALTY") && amount > 0) {
+            throw new IllegalArgumentException(
+                    "A grant must add credits and a penalty must take them away.");
         }
 
-        long txnId = dao.postAdjustment(
-                req.studentId(), type, req.amount(), req.remarks());
+        String remarks = Input.maxLength(Input.text(body.get("remarks")), 200, "Note");
 
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(Map.of("txnId", txnId, "posted", true));
+        long txnId = dao.postAdjustment(studentId, type,
+                BigDecimal.valueOf(amount), remarks);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
+                "txnId", txnId, "posted", true,
+                "message", type.equals("GRANT") ? "Credits added." : "Penalty recorded."));
     }
 
     /** GET /api/ledger/leaderboard — top tutors by hours taught. */

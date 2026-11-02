@@ -169,6 +169,35 @@ public class BookingDao {
         }
     }
 
+    /** Where a cancelled session's credits went. */
+    public record CancelOutcome(double returnedToLearner, double paidToTutor) { }
+
+    /**
+     * Reads back what cancel_booking wrote for this session: RELEASE rows
+     * went back to the learner, a TRANSFER is the late-cancellation share.
+     */
+    public CancelOutcome cancelOutcome(int bookingId) throws SQLException {
+        String sql = """
+                SELECT NVL(SUM(CASE WHEN txn_type = 'RELEASE'  THEN amount END), 0),
+                       NVL(SUM(CASE WHEN txn_type = 'TRANSFER' THEN amount END), 0)
+                FROM   credit_txn
+                WHERE  booking_id = ?""";
+
+        long t0 = SqlLog.q("MEMBER 4  .  Where did the credits go?", sql, bookingId);
+
+        try (Connection c = Database.get();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, bookingId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                CancelOutcome out = new CancelOutcome(rs.getDouble(1), rs.getDouble(2));
+                SqlLog.called("returned " + out.returnedToLearner()
+                            + ", paid " + out.paidToTutor(), t0);
+                return out;
+            }
+        }
+    }
+
     /** Cancels. Who cancels, and how late, decides where the escrow goes. */
     public void cancel(int bookingId, String byRole) throws SQLException {
         callOneArg("BookingDao.cancel  (who cancels, and how late, decides"
@@ -232,14 +261,22 @@ public class BookingDao {
         return query("BookingDao.forStudent  (the SAME id is bound twice, once"
                    + " per role -- that is the overlapping specialization"
                    + " surfacing in the application layer)",
-                BASE_SELECT + """
+                // The code is deliberately selected only when this student is
+                // the learner. A tutor sees the same booking, but never the
+                // secret they must ask the learner to provide at check-in.
+                BASE_SELECT.replace("CAST(NULL AS VARCHAR2(8)) AS session_code",
+                        "CASE WHEN b.tutee_id = ? "
+                      + "AND b.status IN ('REQUESTED','CONFIRMED') "
+                      + "AND b.check_in_at IS NULL "
+                      + "THEN b.session_code END AS session_code") + """
                 WHERE  b.tutor_id = ? OR b.tutee_id = ?
                 ORDER  BY b.sched_date DESC""",
                 ps -> {
-                    ps.setInt(1, studentId);
+                    ps.setInt(1, studentId); // controls the CASE above
                     ps.setInt(2, studentId);
+                    ps.setInt(3, studentId);
                 },
-                studentId, studentId);
+                studentId, studentId, studentId);
     }
 
     /** Filter by status, e.g. CONFIRMED or COMPLETED. */
@@ -278,6 +315,7 @@ public class BookingDao {
                    b.session_mode, b.venue, b.status, b.credits_held,
                    b.confirm_by_tutor || '/' || b.confirm_by_tutee AS confirms,
                    b.check_in_at,
+                   CAST(NULL AS VARCHAR2(8)) AS session_code,
                    b.tutor_id, b.tutee_id
             FROM   booking b
                    JOIN student tr  ON tr.student_id  = b.tutor_id
@@ -317,6 +355,7 @@ public class BookingDao {
                             rs.getBigDecimal("credits_held"),
                             rs.getString("confirms"),
                             rs.getTimestamp("check_in_at") != null,
+                            rs.getString("session_code"),
                             rs.getInt("tutor_id"),
                             rs.getInt("tutee_id")));
                 }

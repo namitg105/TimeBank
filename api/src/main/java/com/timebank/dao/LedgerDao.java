@@ -235,9 +235,15 @@ public class LedgerDao {
 
             List<String> out = new ArrayList<>();
             while (rs.next()) {
-                out.add(String.format("%s <-> %s : %d and %d sessions",
+                int ab = rs.getInt("a_taught_b");
+                int ba = rs.getInt("b_taught_a");
+                out.add(String.format(
+                        "%s and %s tutor each other: %s taught %s %s, and %s taught %s %s.",
                         rs.getString("student_a"), rs.getString("student_b"),
-                        rs.getInt("a_taught_b"), rs.getInt("b_taught_a")));
+                        firstName(rs.getString("student_a")), firstName(rs.getString("student_b")),
+                        times(ab),
+                        firstName(rs.getString("student_b")), firstName(rs.getString("student_a")),
+                        times(ba)));
             }
             SqlLog.rows(out.size(), t0);
             return out;
@@ -276,13 +282,29 @@ public class LedgerDao {
 
             List<String> out = new ArrayList<>();
             while (rs.next()) {
-                out.add(String.format("%2d. %-22s %-7s %2d sessions  %4sh  rating %s",
+                int sessions = rs.getInt("sessions");
+                double rating = rs.getDouble("rating");
+                String badge = rs.getString("badge_level");
+                out.add(String.format("%d. %s  ·  %s badge  ·  %d session%s, %s hours  ·  %s",
                         rs.getInt("rnk"), rs.getString("tutor_name"),
-                        rs.getString("badge_level"), rs.getInt("sessions"),
-                        rs.getBigDecimal("hours"), rs.getBigDecimal("rating")));
+                        badge.charAt(0) + badge.substring(1).toLowerCase(),
+                        sessions, sessions == 1 ? "" : "s",
+                        rs.getBigDecimal("hours").stripTrailingZeros().toPlainString(),
+                        rating > 0 ? "rated " + rs.getBigDecimal("rating")
+                                                  .stripTrailingZeros().toPlainString()
+                                   : "not rated yet"));
             }
             SqlLog.rows(out.size(), t0);
             return out;
         }
+    }
+
+    private static String firstName(String fullName) {
+        int sp = fullName.indexOf(' ');
+        return sp > 0 ? fullName.substring(0, sp) : fullName;
+    }
+
+    private static String times(int n) {
+        return n == 1 ? "once" : n + " times";
     }
 }

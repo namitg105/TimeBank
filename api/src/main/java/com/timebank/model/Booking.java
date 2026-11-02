@@ -18,6 +18,7 @@ public record Booking(
         BigDecimal creditsHeld,
         String     confirmations,   // e.g. "Y/N"
         boolean    checkedIn,
+        String     sessionCode,     // populated only in the learner's own session list
         int        tutorId,         // so the app knows which side the viewer is on
         int        tuteeId
 ) {

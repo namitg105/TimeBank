@@ -121,33 +121,10 @@ public final class Database {
     }
 
     /**
-     * Turns an Oracle error into something a user can act on.
-     * Codes 20001–20021 are the ones our own triggers and package raise
-     * with RAISE_APPLICATION_ERROR, so their messages are already
-     * written for a human and just need unwrapping.
+     * Turns an Oracle error into one sentence a user can act on.
+     * The mapping lives in {@link OracleMessages}.
      */
     public static String explain(SQLException e) {
-        int code = e.getErrorCode();
-
-        if (code >= 20001 && code <= 20021) {
-            String msg = e.getMessage();
-            int nl = msg.indexOf('\n');
-            if (nl > 0) {
-                msg = msg.substring(0, nl);
-            }
-            return msg.replaceFirst("^ORA-\\d+:\\s*", "");
-        }
-
-        return switch (code) {
-            case 1     -> "That value already exists — it has to be unique.";
-            case 1400  -> "A required field was left empty.";
-            case 2291  -> "That tutor, subject or free hour does not exist. "
-                        + "Check what you picked and try again.";
-            case 2292  -> "Cannot delete this — other records still point at it.";
-            case 2290  -> "One of the values is not allowed. Check the form and try again.";
-            case 60    -> "Deadlock: two sessions were waiting on each other. "
-                        + "Please try again.";
-            default    -> "Database error " + code + ": " + e.getMessage();
-        };
+        return OracleMessages.explain(e);
     }
 }

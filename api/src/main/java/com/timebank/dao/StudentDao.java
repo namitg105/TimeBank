@@ -214,6 +214,70 @@ public class StudentDao {
         }
     }
 
+    /**
+     * Reopens a deactivated account — the undo of {@link #deactivate}.
+     * Possible only because deactivating never deleted anything.
+     *
+     * @return rows changed; 0 when the account was already active
+     */
+    public int reactivate(int studentId) throws SQLException {
+        String sql = """
+                UPDATE student
+                SET    account_status = 'ACTIVE'
+                WHERE  student_id     = ?
+                AND    account_status <> 'ACTIVE'""";
+
+        long t0 = SqlLog.q("MEMBER 1  .  Reactivate an account", sql, studentId);
+
+        Connection c = null;
+        try {
+            c = Database.get();
+            try (PreparedStatement ps = c.prepareStatement(sql)) {
+                ps.setInt(1, studentId);
+                int rows = ps.executeUpdate();
+                c.commit();
+                SqlLog.changed(rows, t0);
+
+                Database.showAfter(
+                    "STUDENT after the update:",
+                    "SELECT student_id, first_name, account_status "
+                  + "FROM student WHERE student_id = ?",
+                    studentId);
+                return rows;
+            }
+        } catch (SQLException e) {
+            Database.silentRollback(c);
+            SqlLog.failed(Database.explain(e), t0);
+            throw e;
+        } finally {
+            if (c != null) c.close();
+        }
+    }
+
+    /** A student's phone numbers — the multivalued attribute, one row each. */
+    public List<String> phonesOf(int studentId) throws SQLException {
+        String sql = """
+                SELECT phone_no
+                FROM   student_phone
+                WHERE  student_id = ?
+                ORDER  BY phone_no""";
+
+        long t0 = SqlLog.q("MEMBER 1  .  My phone numbers", sql, studentId);
+
+        try (Connection c = Database.get();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, studentId);
+            try (ResultSet rs = ps.executeQuery()) {
+                List<String> out = new ArrayList<>();
+                while (rs.next()) {
+                    out.add(rs.getString(1));
+                }
+                SqlLog.rows(out.size(), t0);
+                return out;
+            }
+        }
+    }
+
     // -----------------------------------------------------------------
     //  DELETE
     // -----------------------------------------------------------------
