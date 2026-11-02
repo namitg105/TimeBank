@@ -15,6 +15,8 @@ class BookingModel extends Booking {
     required super.creditsHeld,
     required super.confirmations,
     required super.checkedIn,
+    required super.tutorId,
+    required super.tuteeId,
   });
 
   factory BookingModel.fromJson(Map<String, dynamic> json) => BookingModel(
@@ -33,6 +35,8 @@ class BookingModel extends Booking {
         creditsHeld: _double(json['creditsHeld']),
         confirmations: json['confirmations']?.toString() ?? 'N/N',
         checkedIn: json['checkedIn'] == true,
+        tutorId: _int(json['tutorId']),
+        tuteeId: _int(json['tuteeId']),
       );
 
   static double _double(dynamic v) => switch (v) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_widgets.dart';
+import '../../../auth/session.dart';
 import '../../domain/entities/booking.dart';
 import '../bloc/booking_bloc.dart';
 import '../widgets/booking_card.dart';
@@ -27,10 +28,19 @@ class _BookingsPageState extends State<BookingsPage> {
     'DISPUTED': 'Disputed',
   };
 
+  /// A student sees only their own sessions; the administrator sees all.
+  BookingsRequested _request(String? status) {
+    final s = currentSession.value;
+    return BookingsRequested(
+      status: status,
+      studentId: (s == null || s.isAdmin) ? null : s.studentId,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
-    context.read<BookingBloc>().add(const BookingsRequested());
+    context.read<BookingBloc>().add(_request(null));
   }
 
   @override
@@ -54,35 +64,18 @@ class _BookingsPageState extends State<BookingsPage> {
             selected: _filter,
             onSelect: (f) {
               setState(() => _filter = f);
-              context.read<BookingBloc>().add(BookingsRequested(status: f));
+              context.read<BookingBloc>().add(_request(f));
             },
           ),
           Expanded(
             child: BlocConsumer<BookingBloc, BookingState>(
               listenWhen: (_, s) =>
-                  s is BookingCreated ||
-                  s is BookingActionSuccess ||
-                  s is BookingFailure,
+                  s is BookingActionSuccess || s is BookingFailure,
               listener: (context, state) {
+                // While the booking form is open on top, it reports its
+                // own result; reacting here too would double the message.
+                if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
                 switch (state) {
-                  // A new booking shows its session code in a dialog. It
-                  // is displayed once, and the tutee has to keep it: the
-                  // tutor types it in at the start of the session, which
-                  // is what proves the tutee actually turned up.
-                  case BookingCreated(
-                      :final bookingId,
-                      :final sessionCode,
-                      :final creditsHeld
-                    ):
-                    showDialog<void>(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (_) => SessionCodeDialog(
-                        bookingId: bookingId,
-                        sessionCode: sessionCode,
-                        creditsHeld: creditsHeld,
-                      ),
-                    );
                   case BookingActionSuccess(:final message):
                     _toast(message, AppColors.positive);
                   case BookingFailure(:final message, :final isRule)
@@ -103,7 +96,7 @@ class _BookingsPageState extends State<BookingsPage> {
                     message: message,
                     onRetry: () => context
                         .read<BookingBloc>()
-                        .add(BookingsRequested(status: _filter)),
+                        .add(_request(_filter)),
                   ),
                 BookingsLoaded(:final bookings) =>
                   _BookingList(bookings: bookings, filter: _filter),
@@ -116,14 +109,33 @@ class _BookingsPageState extends State<BookingsPage> {
     );
   }
 
-  void _openBooking() {
+  /// Opens the form and, once it has closed itself with a new booking,
+  /// shows the session code. The order matters: shown any earlier, the
+  /// dialog would sit above the form and be closed along with it.
+  ///
+  /// The code is displayed once and the tutee has to keep it: the tutor
+  /// types it in at the start of the session, which proves the tutee
+  /// actually turned up.
+  Future<void> _openBooking() async {
     final bloc = context.read<BookingBloc>();
-    Navigator.of(context).push(MaterialPageRoute(
+    final created =
+        await Navigator.of(context).push<BookingCreated>(MaterialPageRoute(
       builder: (_) => BlocProvider.value(
         value: bloc,
         child: const BookSessionPage(),
       ),
     ));
+    if (created == null || !mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => SessionCodeDialog(
+        bookingId: created.bookingId,
+        sessionCode: created.sessionCode,
+        creditsHeld: created.creditsHeld,
+      ),
+    );
   }
 
   void _toast(String message, Color tint) {
@@ -228,7 +240,7 @@ class _BookingList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
       itemCount: bookings.length + 1,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, i) {
         if (i == 0) {
           return Padding(

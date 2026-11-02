@@ -20,7 +20,7 @@ class SectionLabel extends StatelessWidget {
             Text(text.toUpperCase(),
                 style: Theme.of(context).textTheme.labelSmall),
             const Spacer(),
-            if (trailing != null) trailing!,
+            ?trailing,
           ],
         ),
       );
@@ -30,6 +30,9 @@ class SectionLabel extends StatelessWidget {
 ///
 /// The colour is a secondary cue only — the word is always shown, so the
 /// meaning does not depend on being able to distinguish the colours.
+/// A status code as people read it: UNDER_REVIEW -> UNDER REVIEW.
+String readableStatus(String status) => status.replaceAll('_', ' ');
+
 class StatusChip extends StatelessWidget {
   final String status;
   const StatusChip(this.status, {super.key});
@@ -45,7 +48,7 @@ class StatusChip extends StatelessWidget {
         border: Border.all(color: c.withValues(alpha: 0.35)),
       ),
       child: Text(
-        status,
+        readableStatus(status),
         style: TextStyle(
           color: c,
           fontSize: 10.5,

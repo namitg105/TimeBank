@@ -10,7 +10,7 @@ import '../entities/student.dart';
 /// layer supplies it. The domain never imports dio, never imports a
 /// model with fromJson, and never learns that Oracle exists.
 ///
-/// Every method returns Either<Failure, T> rather than throwing, so a
+/// Every method returns `Either<Failure, T>` rather than throwing, so a
 /// caller cannot forget to deal with the error case: the type system
 /// will not let it compile.
 abstract interface class StudentRepository {

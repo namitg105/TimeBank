@@ -44,10 +44,15 @@ class ApiClient {
   /// hosting it. 10.0.2.2 is the special address Android maps back to
   /// the host machine.
   ///
-  /// On a real phone, replace this with the computer's LAN address, e.g.
-  /// `http://192.168.1.14:8081` — and make sure the Spring Boot service
-  /// is bound to 0.0.0.0, which application.properties already does.
+  /// On a real phone, pass the computer's LAN address at build time
+  /// instead of editing this file:
+  /// `flutter run --dart-define=API_BASE_URL=http://192.168.1.14:8081`
+  /// — and make sure the Spring Boot service is bound to 0.0.0.0, which
+  /// application.properties already does.
+  static const _override = String.fromEnvironment('API_BASE_URL');
+
   static String get defaultBaseUrl {
+    if (_override.isNotEmpty) return _override;
     if (kIsWeb) return 'http://localhost:8081';
     if (Platform.isAndroid) return 'http://10.0.2.2:8081';
     return 'http://localhost:8081';

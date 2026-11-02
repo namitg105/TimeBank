@@ -84,10 +84,10 @@ class _BookSessionPageState extends State<BookSessionPage> {
       appBar: AppBar(title: const Text('Book a session')),
       body: BlocListener<BookingBloc, BookingState>(
         listener: (context, state) {
-          // Pop on success so the dialog with the session code appears
-          // over the list, not over this form.
+          // Close this form and hand the booking back; the list then
+          // shows the session code over itself, not over this form.
           if (state is BookingCreated) {
-            Navigator.of(context).pop();
+            Navigator.of(context).pop(state);
           } else if (state is BookingFailure) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
@@ -147,28 +147,35 @@ class _BookSessionPageState extends State<BookSessionPage> {
               ),
 
               const SectionLabel('Who with'),
-              TextFormField(
-                controller: _otherRef,
-                textCapitalization: TextCapitalization.characters,
-                style: const TextStyle(fontSize: 14.5),
-                decoration: InputDecoration(
-                  labelText: _intent == 'LEARN'
-                      ? "Tutor's registration number"
-                      : "Student's registration number",
-                  hintText: '25BCE1001',
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-                onEditingComplete: _loadSlots,
-                onChanged: (_) {
-                  if (_slots.isNotEmpty || _slotError != null) {
-                    setState(() {
-                      _slots = [];
-                      _slotPicked = null;
-                      _slotError = null;
-                    });
-                  }
+              // Load the free hours when the box loses focus too, not only
+              // on Enter: most people type the number and click onwards.
+              Focus(
+                onFocusChange: (hasFocus) {
+                  if (!hasFocus && _slots.isEmpty) _loadSlots();
                 },
+                child: TextFormField(
+                  controller: _otherRef,
+                  textCapitalization: TextCapitalization.characters,
+                  style: const TextStyle(fontSize: 14.5),
+                  decoration: InputDecoration(
+                    labelText: _intent == 'LEARN'
+                        ? "Tutor's registration number"
+                        : "Student's registration number",
+                    hintText: '25BCE1001',
+                  ),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  onEditingComplete: _loadSlots,
+                  onChanged: (_) {
+                    if (_slots.isNotEmpty || _slotError != null) {
+                      setState(() {
+                        _slots = [];
+                        _slotPicked = null;
+                        _slotError = null;
+                      });
+                    }
+                  },
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -259,19 +266,6 @@ class _BookSessionPageState extends State<BookSessionPage> {
       ),
     );
   }
-
-  Widget _numField(TextEditingController c, String label, {String? hint}) =>
-      TextFormField(
-        controller: c,
-        keyboardType: TextInputType.number,
-        style: const TextStyle(fontSize: 14.5),
-        decoration: InputDecoration(labelText: label, hintText: hint),
-        validator: (v) {
-          if (v == null || v.trim().isEmpty) return 'Required';
-          if (int.tryParse(v.trim()) == null) return 'Numbers only';
-          return null;
-        },
-      );
 
 
   // -------------------------------------------------------------------

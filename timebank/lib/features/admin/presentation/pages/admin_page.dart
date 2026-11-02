@@ -223,7 +223,7 @@ class _AdminPageState extends State<AdminPage> {
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ChoiceChip(
-                    label: Text(f, style: const TextStyle(fontSize: 12)),
+                    label: Text(readableStatus(f), style: const TextStyle(fontSize: 12)),
                     selected: _filter == f,
                     onSelected: (_) {
                       setState(() => _filter = f);

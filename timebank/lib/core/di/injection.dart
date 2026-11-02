@@ -70,6 +70,7 @@ Future<void> initDependencies({String? baseUrl}) async {
       () => BookingRepositoryImpl(sl()),
     )
     ..registerLazySingleton(() => GetBookings(sl()))
+    ..registerLazySingleton(() => GetStudentBookings(sl()))
     ..registerLazySingleton(() => BookSession(sl()))
     ..registerLazySingleton(() => CheckInSession(sl()))
     ..registerLazySingleton(() => ConfirmSession(sl()))
@@ -77,6 +78,7 @@ Future<void> initDependencies({String? baseUrl}) async {
     ..registerFactory(
       () => BookingBloc(
         getBookings: sl(),
+        getStudentBookings: sl(),
         bookSession: sl(),
         checkInSession: sl(),
         confirmSession: sl(),

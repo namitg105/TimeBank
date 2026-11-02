@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_widgets.dart';
+import '../../../auth/session.dart';
 import '../../domain/entities/booking.dart';
 import '../bloc/booking_bloc.dart';
 
@@ -247,47 +248,86 @@ class _Party extends StatelessWidget {
       );
 }
 
-/// Only the action the session actually needs next is offered.
+/// Only the action the session actually needs next is offered, and only
+/// to the side it belongs to.
 ///
 /// Check-in comes before confirmation because the database enforces that
 /// order: trg_confirm_after_end refuses a confirmation when check_in_at
 /// is still null. Offering both at once would just produce an error.
+///
+/// A student sees only their own side's buttons. The session code proves
+/// the tutee turned up only if the TUTOR types it in, and the two
+/// confirmations mean something only if each side gives its own. The
+/// administrator acts for either side, which keeps a one-screen demo
+/// possible.
 class _Actions extends StatelessWidget {
   final Booking booking;
   const _Actions({required this.booking});
 
   @override
   Widget build(BuildContext context) {
+    final me = currentSession.value;
+    final isAdmin = me == null || me.isAdmin;
+    final asTutor = isAdmin || me.studentId == booking.tutorId;
+    final asTutee = isAdmin || me.studentId == booking.tuteeId;
+
+    // Whose cancel this is; null lets the administrator choose.
+    final String? myRole = isAdmin ? null : (asTutor ? 'TUTOR' : 'TUTEE');
+
     if (!booking.checkedIn) {
       return Row(
         children: [
           Expanded(
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.key_outlined, size: 16),
-              label: const Text('Enter code', style: TextStyle(fontSize: 13)),
-              onPressed: () => _askForCode(context),
-            ),
+            child: asTutor
+                ? OutlinedButton.icon(
+                    icon: const Icon(Icons.key_outlined, size: 16),
+                    label: const Text('Enter code',
+                        style: TextStyle(fontSize: 13)),
+                    onPressed: () => _askForCode(context),
+                  )
+                : const Text(
+                    'When you meet, read your session code to the tutor.',
+                    style: TextStyle(
+                        fontSize: 12.5, color: AppColors.textSecondary),
+                  ),
           ),
           const SizedBox(width: 9),
-          _CancelButton(booking: booking),
+          _CancelButton(booking: booking, byRole: myRole),
         ],
       );
     }
 
+    final tutorCanConfirm = asTutor && !booking.tutorConfirmed;
+    final tuteeCanConfirm = asTutee && !booking.tuteeConfirmed;
+
     return Row(
       children: [
-        if (!booking.tutorConfirmed)
+        if (tutorCanConfirm)
           Expanded(
-            child: _ConfirmButton(bookingId: booking.bookingId, role: 'TUTOR'),
+            child: _ConfirmButton(
+              bookingId: booking.bookingId,
+              role: 'TUTOR',
+              label: isAdmin ? 'Tutor confirms' : 'I confirm it happened',
+            ),
           ),
-        if (!booking.tutorConfirmed && !booking.tuteeConfirmed)
-          const SizedBox(width: 9),
-        if (!booking.tuteeConfirmed)
+        if (tutorCanConfirm && tuteeCanConfirm) const SizedBox(width: 9),
+        if (tuteeCanConfirm)
           Expanded(
-            child: _ConfirmButton(bookingId: booking.bookingId, role: 'TUTEE'),
+            child: _ConfirmButton(
+              bookingId: booking.bookingId,
+              role: 'TUTEE',
+              label: isAdmin ? 'Tutee confirms' : 'I confirm it happened',
+            ),
+          ),
+        if (!tutorCanConfirm && !tuteeCanConfirm)
+          const Expanded(
+            child: Text(
+              'You have confirmed. Waiting for the other side.',
+              style: TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+            ),
           ),
         const SizedBox(width: 9),
-        _CancelButton(booking: booking),
+        _CancelButton(booking: booking, byRole: myRole),
       ],
     );
   }
@@ -354,7 +394,12 @@ class _Actions extends StatelessWidget {
 class _ConfirmButton extends StatelessWidget {
   final int bookingId;
   final String role;
-  const _ConfirmButton({required this.bookingId, required this.role});
+  final String label;
+  const _ConfirmButton({
+    required this.bookingId,
+    required this.role,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) => OutlinedButton(
@@ -365,16 +410,17 @@ class _ConfirmButton extends StatelessWidget {
           foregroundColor: AppColors.positive,
           side: BorderSide(color: AppColors.positive.withValues(alpha: 0.5)),
         ),
-        child: Text(
-          role == 'TUTOR' ? 'Tutor confirms' : 'Tutee confirms',
-          style: const TextStyle(fontSize: 12.5),
-        ),
+        child: Text(label, style: const TextStyle(fontSize: 12.5)),
       );
 }
 
 class _CancelButton extends StatelessWidget {
   final Booking booking;
-  const _CancelButton({required this.booking});
+
+  /// TUTOR or TUTEE when a student cancels their own side; null for the
+  /// administrator, who is asked which side is cancelling.
+  final String? byRole;
+  const _CancelButton({required this.booking, this.byRole});
 
   @override
   Widget build(BuildContext context) => IconButton(
@@ -416,26 +462,40 @@ class _CancelButton extends StatelessWidget {
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Keep it'),
           ),
-          TextButton(
-            onPressed: () {
-              bloc.add(SessionCancelled(booking.bookingId, 'TUTEE'));
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Student cancels'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.negative,
-              foregroundColor: Colors.white,
+          if (byRole == null) ...[
+            TextButton(
+              onPressed: () => _cancelAs(dialogContext, bloc, 'TUTEE'),
+              child: const Text('Student cancels'),
             ),
-            onPressed: () {
-              bloc.add(SessionCancelled(booking.bookingId, 'TUTOR'));
-              Navigator.pop(dialogContext);
-            },
-            child: const Text('Tutor cancels'),
-          ),
+            _dangerButton(
+              onPressed: () => _cancelAs(dialogContext, bloc, 'TUTOR'),
+              label: 'Tutor cancels',
+            ),
+          ] else
+            _dangerButton(
+              onPressed: () => _cancelAs(dialogContext, bloc, byRole!),
+              label: 'Cancel session',
+            ),
         ],
       ),
     );
   }
+
+  void _cancelAs(BuildContext dialogContext, BookingBloc bloc, String role) {
+    bloc.add(SessionCancelled(booking.bookingId, role));
+    Navigator.pop(dialogContext);
+  }
+
+  static Widget _dangerButton({
+    required VoidCallback onPressed,
+    required String label,
+  }) =>
+      FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.negative,
+          foregroundColor: Colors.white,
+        ),
+        onPressed: onPressed,
+        child: Text(label),
+      );
 }

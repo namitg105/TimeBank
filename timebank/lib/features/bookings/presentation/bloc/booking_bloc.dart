@@ -13,11 +13,14 @@ sealed class BookingEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+/// Loads sessions. With a [studentId], only that student's sessions
+/// (the student's own tab); without one, everyone's (the admin's tab).
 final class BookingsRequested extends BookingEvent {
   final String? status;
-  const BookingsRequested({this.status});
+  final int? studentId;
+  const BookingsRequested({this.status, this.studentId});
   @override
-  List<Object?> get props => [status];
+  List<Object?> get props => [status, studentId];
 }
 
 final class SessionBooked extends BookingEvent {
@@ -107,15 +110,19 @@ final class BookingFailure extends BookingState {
 
 class BookingBloc extends Bloc<BookingEvent, BookingState> {
   final GetBookings getBookings;
+  final GetStudentBookings getStudentBookings;
   final BookSession bookSession;
   final CheckInSession checkInSession;
   final ConfirmSession confirmSession;
   final CancelSession cancelSession;
 
-  String? _lastFilter;
+  /// The last request, replayed after every write so the list refreshes
+  /// with the same filter and for the same student.
+  BookingsRequested _last = const BookingsRequested();
 
   BookingBloc({
     required this.getBookings,
+    required this.getStudentBookings,
     required this.bookSession,
     required this.checkInSession,
     required this.confirmSession,
@@ -130,9 +137,16 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
 
   Future<void> _onRequested(
       BookingsRequested event, Emitter<BookingState> emit) async {
-    _lastFilter = event.status;
+    _last = event;
     emit(const BookingLoading());
-    final result = await getBookings(event.status);
+
+    final studentId = event.studentId;
+    final result = studentId == null
+        ? await getBookings(event.status)
+        : (await getStudentBookings(studentId)).map((list) => event.status == null
+            ? list
+            : list.where((b) => b.status == event.status).toList());
+
     emit(result.fold(
       (f) => BookingFailure(f.message, isRule: _isRule(f)),
       (list) => BookingsLoaded(list, filter: event.status),
@@ -149,7 +163,7 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
       (pair) async {
         final (id, code) = pair;
         emit(BookingCreated(id, code, event.params.durationHours));
-        add(BookingsRequested(status: _lastFilter));
+        add(_last);
       },
     );
   }
@@ -179,7 +193,7 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
       (f) async => emit(BookingFailure(f.message, isRule: _isRule(f))),
       (message) async {
         emit(BookingActionSuccess(message));
-        add(BookingsRequested(status: _lastFilter));
+        add(_last);
       },
     );
   }

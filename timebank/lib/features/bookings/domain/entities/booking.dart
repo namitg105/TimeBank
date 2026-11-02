@@ -30,6 +30,11 @@ class Booking extends Equatable {
   /// what proves the tutee actually turned up.
   final bool checkedIn;
 
+  /// Who is on each side, so a screen can offer a student only the
+  /// actions that belong to their side of the session.
+  final int tutorId;
+  final int tuteeId;
+
   const Booking({
     required this.bookingId,
     required this.tuteeName,
@@ -44,6 +49,8 @@ class Booking extends Equatable {
     required this.creditsHeld,
     required this.confirmations,
     required this.checkedIn,
+    required this.tutorId,
+    required this.tuteeId,
   });
 
   bool get tutorConfirmed => confirmations.startsWith('Y');

@@ -21,59 +21,33 @@ class LedgerPage extends StatefulWidget {
 }
 
 class _LedgerPageState extends State<LedgerPage> {
-  /// A signed-in student opens their own passbook; nobody should have
-  /// to look up their own id. An administrator can type another one.
-  late final int _initialId = currentSession.value?.studentId ?? 102;
-  late final TextEditingController _idController =
-      TextEditingController(text: '$_initialId');
+  /// Always the signed-in student's own passbook. There is no box to
+  /// open someone else's: credit history is private to its owner, and
+  /// the administrator has the audit screen instead.
+  final int? _myId = currentSession.value?.studentId;
 
   @override
   void initState() {
     super.initState();
-    context.read<LedgerBloc>().add(PassbookRequested(_initialId));
-  }
-
-  @override
-  void dispose() {
-    _idController.dispose();
-    super.dispose();
+    _load();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Passbook')),
+      appBar: AppBar(
+        title: const Text('Passbook'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            icon: const Icon(Icons.refresh, size: 21),
+            onPressed: _load,
+          ),
+          const SizedBox(width: 6),
+        ],
+      ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _idController,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 14.5),
-                    decoration: const InputDecoration(
-                      labelText: 'Student number',
-                      hintText: 'yours by default',
-                      prefixIcon: Icon(Icons.badge_outlined,
-                          size: 19, color: AppColors.textMuted),
-                    ),
-                    onSubmitted: (_) => _load(),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  height: 50,
-                  child: FilledButton(
-                    onPressed: _load,
-                    child: const Text('Open'),
-                  ),
-                ),
-              ],
-            ),
-          ),
           Expanded(
             child: BlocConsumer<LedgerBloc, LedgerState>(
               listenWhen: (_, s) =>
@@ -118,9 +92,8 @@ class _LedgerPageState extends State<LedgerPage> {
   }
 
   void _load() {
-    final id = int.tryParse(_idController.text.trim());
+    final id = _myId;
     if (id == null) return;
-    FocusScope.of(context).unfocus();
     context.read<LedgerBloc>().add(PassbookRequested(id));
   }
 }
