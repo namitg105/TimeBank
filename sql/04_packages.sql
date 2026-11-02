@@ -69,6 +69,22 @@ END pkg_timebank;
 CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
 
   -- =================================================================
+  --  PRIVATE : status_words
+  --  A booking status as a person would say it, for error messages.
+  -- =================================================================
+  FUNCTION status_words (p_status IN VARCHAR2) RETURN VARCHAR2 IS
+  BEGIN
+    RETURN CASE p_status
+             WHEN 'REQUESTED' THEN 'still waiting to be confirmed'
+             WHEN 'CONFIRMED' THEN 'booked'
+             WHEN 'COMPLETED' THEN 'already finished'
+             WHEN 'CANCELLED' THEN 'cancelled'
+             WHEN 'DISPUTED'  THEN 'under a complaint'
+             ELSE LOWER (p_status)
+           END;
+  END status_words;
+
+  -- =================================================================
   --  PRIVATE : post_txn
   --  The ONLY place a ledger row is ever written.
   --  Computes balance_snapshot as "balance before + this amount", which
@@ -180,7 +196,20 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
   BEGIN
     IF p_tutor_id = p_tutee_id THEN
       RAISE_APPLICATION_ERROR (-20010,
-        'A student cannot book a session with themselves.');
+        'You cannot book a session with yourself.');
+    END IF;
+
+    ---------------------------------------------------------------
+    -- 0. Both people must have active accounts.
+    ---------------------------------------------------------------
+    SELECT COUNT (*) INTO v_dummy
+    FROM   student
+    WHERE  student_id IN (p_tutor_id, p_tutee_id)
+    AND    account_status <> 'ACTIVE';
+
+    IF v_dummy > 0 THEN
+      RAISE_APPLICATION_ERROR (-20023,
+        'One of these accounts has been deactivated, so it cannot be booked.');
     END IF;
 
     ---------------------------------------------------------------
@@ -195,7 +224,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
     EXCEPTION
       WHEN NO_DATA_FOUND THEN
         RAISE_APPLICATION_ERROR (-20011,
-          'Tutor ' || p_tutor_id || ' has no slot number ' || p_slot_no || '.');
+          'That free hour no longer exists. Pick one from the list again.');
     END;
 
     ---------------------------------------------------------------
@@ -211,9 +240,34 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
 
     IF v_clash > 0 THEN
       RAISE_APPLICATION_ERROR (-20005,
-        'That slot is already booked on ' ||
-        TO_CHAR (p_sched_date, 'DD-MON-YYYY') || '.');
+        'That free hour is already booked on ' ||
+        TO_CHAR (p_sched_date, 'FMDD Mon YYYY') ||
+        '. Pick another hour or another date.');
     END IF;
+
+    ---------------------------------------------------------------
+    -- 2b. Neither person may be in two sessions at once. Two time
+    --     ranges overlap when each starts before the other ends.
+    --     Both roles are checked for each person, because the
+    --     specialization is overlapping: a learner may also teach.
+    ---------------------------------------------------------------
+    FOR who IN (SELECT p_tutee_id AS id, 'The learner' AS label FROM dual
+                UNION ALL
+                SELECT p_tutor_id, 'The tutor' FROM dual) LOOP
+      SELECT COUNT (*) INTO v_clash
+      FROM   booking
+      WHERE  sched_date = p_sched_date
+      AND    status IN ('REQUESTED','CONFIRMED')
+      AND    who.id IN (tutor_id, tutee_id)
+      AND    p_start_time < sched_start_time + duration_hours
+      AND    p_start_time + p_duration > sched_start_time;
+
+      IF v_clash > 0 THEN
+        RAISE_APPLICATION_ERROR (-20022,
+          who.label || ' already has another session at that time on ' ||
+          TO_CHAR (p_sched_date, 'FMDD Mon YYYY') || '.');
+      END IF;
+    END LOOP;
 
     ---------------------------------------------------------------
     -- 3. Collusion cap: the same two people, either direction,
@@ -224,15 +278,16 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
 
     SELECT COUNT (*) INTO v_recent
     FROM   booking
-    WHERE  sched_date >= p_sched_date - 7
+    WHERE  sched_date BETWEEN p_sched_date - 6 AND p_sched_date + 6
     AND    status IN ('REQUESTED','CONFIRMED','COMPLETED')
     AND    (   (tutor_id = p_tutor_id AND tutee_id = p_tutee_id)
             OR (tutor_id = p_tutee_id AND tutee_id = p_tutor_id));
 
     IF v_recent >= v_cap THEN
       RAISE_APPLICATION_ERROR (-20009,
-        'This pair has reached the weekly limit of ' || v_cap ||
-        ' sessions. Book with a different peer.');
+        'You two already have ' || v_cap || ' sessions within a week of ' ||
+        'that date, which is the limit. Pick a date further away, or ' ||
+        'someone else.');
     END IF;
 
     ---------------------------------------------------------------
@@ -281,13 +336,13 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
 
     IF v_status <> 'CONFIRMED' THEN
       RAISE_APPLICATION_ERROR (-20012,
-        'Only a CONFIRMED booking can be checked in. This one is ' ||
-        v_status || '.');
+        'This session is ' || status_words (v_status) ||
+        ', so it cannot be checked in.');
     END IF;
 
     IF UPPER (p_session_code) <> v_code THEN
       RAISE_APPLICATION_ERROR (-20013,
-        'Session code does not match. Ask the tutee to read it again.');
+        'That session code is not right. Ask the learner to read it again.');
     END IF;
 
     UPDATE booking
@@ -296,7 +351,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
   EXCEPTION
     WHEN NO_DATA_FOUND THEN
       RAISE_APPLICATION_ERROR (-20014,
-        'No booking with id ' || p_booking_id || '.');
+        'That session does not exist.');
   END check_in;
 
 
@@ -319,8 +374,8 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
 
     IF v_bk.status NOT IN ('CONFIRMED','REQUESTED') THEN
       RAISE_APPLICATION_ERROR (-20015,
-        'Booking ' || p_booking_id || ' is ' || v_bk.status ||
-        ' and can no longer be confirmed.');
+        'This session is ' || status_words (v_bk.status) ||
+        ', so it can no longer be confirmed.');
     END IF;
 
     IF UPPER (p_role) = 'TUTOR' THEN
@@ -331,7 +386,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
       WHERE  booking_id = p_booking_id;
     ELSE
       RAISE_APPLICATION_ERROR (-20016,
-        'Role must be TUTOR or TUTEE, not ' || p_role || '.');
+        'Say who is confirming: the tutor or the learner.');
     END IF;
 
     -- Re-read: the other side may already have confirmed.
@@ -353,7 +408,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
   EXCEPTION
     WHEN NO_DATA_FOUND THEN
       RAISE_APPLICATION_ERROR (-20014,
-        'No booking with id ' || p_booking_id || '.');
+        'That session does not exist.');
   END confirm_session;
 
 
@@ -381,10 +436,18 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
     WHERE  booking_id = p_booking_id
     FOR UPDATE;
 
+    IF UPPER (p_by_role) NOT IN ('TUTOR','TUTEE') THEN
+      RAISE_APPLICATION_ERROR (-20016,
+        'Say who is cancelling: the tutor or the learner.');
+    END IF;
+
     IF v_bk.status NOT IN ('REQUESTED','CONFIRMED') THEN
       RAISE_APPLICATION_ERROR (-20017,
-        'Booking ' || p_booking_id || ' is ' || v_bk.status ||
-        ' and cannot be cancelled.');
+        CASE v_bk.status
+          WHEN 'CANCELLED' THEN 'This session has already been cancelled.'
+          ELSE 'This session is ' || status_words (v_bk.status) ||
+               ', so it cannot be cancelled.'
+        END);
     END IF;
 
     SELECT policy_value INTO v_window
@@ -420,7 +483,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
   EXCEPTION
     WHEN NO_DATA_FOUND THEN
       RAISE_APPLICATION_ERROR (-20014,
-        'No booking with id ' || p_booking_id || '.');
+        'That session does not exist.');
   END cancel_booking;
 
 
@@ -446,7 +509,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
 
     IF v_status = 'CANCELLED' THEN
       RAISE_APPLICATION_ERROR (-20018,
-        'A cancelled booking has no escrow left to dispute.');
+        'A cancelled session cannot be disputed.');
     END IF;
 
     SELECT NVL (MAX (dispute_no), 0) + 1 INTO p_dispute_no
@@ -463,7 +526,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
   EXCEPTION
     WHEN NO_DATA_FOUND THEN
       RAISE_APPLICATION_ERROR (-20014,
-        'No booking with id ' || p_booking_id || '.');
+        'That session does not exist.');
   END raise_dispute;
 
 
@@ -491,7 +554,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
     FOR UPDATE;
 
     IF v_dstatus = 'RESOLVED' THEN
-      RAISE_APPLICATION_ERROR (-20019, 'That dispute is already resolved.');
+      RAISE_APPLICATION_ERROR (-20019, 'This complaint has already been closed.');
     END IF;
 
     SELECT * INTO v_bk
@@ -523,7 +586,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
       WHERE  booking_id = p_booking_id;
     ELSE
       RAISE_APPLICATION_ERROR (-20020,
-        'Decision must be TUTOR or TUTEE, not ' || p_in_favour || '.');
+        'Say who the ruling favours: the tutor or the learner.');
     END IF;
 
     UPDATE dispute
@@ -535,7 +598,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_timebank AS
   EXCEPTION
     WHEN NO_DATA_FOUND THEN
       RAISE_APPLICATION_ERROR (-20021,
-        'No such dispute on booking ' || p_booking_id || '.');
+        'That complaint does not exist.');
   END resolve_dispute;
 
 

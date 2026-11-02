@@ -89,9 +89,11 @@ BEGIN
 
   IF v_balance - :NEW.duration_hours < v_floor THEN
     RAISE_APPLICATION_ERROR (-20002,
-      'Overdraft limit reached. Balance is ' || v_balance ||
-      ', this booking costs ' || :NEW.duration_hours ||
-      ', floor is ' || v_floor || '. Teach a session to earn credits.');
+      'Not enough credits. The learner has ' ||
+      TO_CHAR (v_balance, 'FM990.0') || ', this session costs ' ||
+      TO_CHAR (:NEW.duration_hours, 'FM990.0') ||
+      ', and a balance may not go below ' || TO_CHAR (v_floor, 'FM990.0') ||
+      '. Teaching a session earns more credits.');
   END IF;
 END;
 /
@@ -120,7 +122,7 @@ BEGIN
     IF SYSDATE < v_session_end THEN
       RAISE_APPLICATION_ERROR (-20003,
         'This session ends at ' ||
-        TO_CHAR (v_session_end, 'DD-MON-YYYY HH24:MI') ||
+        TO_CHAR (v_session_end, 'FMDD Mon YYYY, FMHH24:MI') ||
         '. It cannot be confirmed before then.');
     END IF;
 
@@ -128,7 +130,7 @@ BEGIN
     -- which entering the session code proves.
     IF :NEW.check_in_at IS NULL THEN
       RAISE_APPLICATION_ERROR (-20004,
-        'No check-in recorded. The tutor must enter the tutee''s session code before this session can be confirmed.');
+        'Nobody has checked in yet. The tutor must enter the learner''s session code before this session can be confirmed.');
     END IF;
   END IF;
 END;
@@ -162,8 +164,12 @@ BEGIN
   IF :NEW.sched_start_time < v_start
   OR :NEW.sched_start_time + :NEW.duration_hours > v_end THEN
     RAISE_APPLICATION_ERROR (-20006,
-      'Requested time falls outside slot ' || :NEW.slot_no ||
-      ' (' || v_start || ' to ' || v_end || ').');
+      'That time does not fit inside the chosen free hour (' ||
+      TO_CHAR (TRUNC (v_start), 'FM00') || ':' ||
+      TO_CHAR (ROUND (MOD (v_start, 1) * 60), 'FM00') || ' to ' ||
+      TO_CHAR (TRUNC (v_end), 'FM00') || ':' ||
+      TO_CHAR (ROUND (MOD (v_end, 1) * 60), 'FM00') ||
+      '). Choose a start time and length inside it.');
   END IF;
 
   -- NLS_DATE_LANGUAGE pins the weekday name so this behaves identically
@@ -173,8 +179,13 @@ BEGIN
 
   IF v_bk_day <> v_day THEN
     RAISE_APPLICATION_ERROR (-20007,
-      'Slot ' || :NEW.slot_no || ' is a ' || v_day ||
-      ' slot, but the chosen date is a ' || v_bk_day || '.');
+      'That free hour is on ' ||
+      CASE v_day WHEN 'MON' THEN 'Mondays'   WHEN 'TUE' THEN 'Tuesdays'
+                 WHEN 'WED' THEN 'Wednesdays' WHEN 'THU' THEN 'Thursdays'
+                 WHEN 'FRI' THEN 'Fridays'   WHEN 'SAT' THEN 'Saturdays'
+                 ELSE 'Sundays' END ||
+      ', but the date you chose is a ' ||
+      TO_CHAR (:NEW.sched_date, 'FMDay', 'NLS_DATE_LANGUAGE=ENGLISH') || '.');
   END IF;
 END;
 /
@@ -199,8 +210,7 @@ BEGIN
 
   IF v_status <> 'COMPLETED' THEN
     RAISE_APPLICATION_ERROR (-20008,
-      'Feedback can only be left on a COMPLETED session. This booking is ' ||
-      v_status || '.');
+      'A review can only be left once the session has finished.');
   END IF;
 END;
 /
