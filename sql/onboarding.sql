@@ -1,6 +1,6 @@
 -- =====================================================================
 --  TimeBank -- MEMBER 1 of 5 : User Onboarding & Student Profiles
---  File    : 06_member1_onboarding.sql
+--  File    : onboarding.sql
 --
 --  Tables owned : DEPARTMENT, STUDENT, STUDENT_PHONE, TUTOR, TUTEE,
 --                 TUTEE_PREFTIME

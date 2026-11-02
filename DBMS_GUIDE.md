@@ -630,7 +630,7 @@ demo. Doing it live under pressure wastes time.
 
 | # | What | Who |
 |---|---|---|
-| 1 | `@06_member1_onboarding.sql` | Member 1 |
+| 1 | `@onboarding.sql` | Member 1 |
 | 2 | `@07_member2_skills.sql` | Member 2 |
 | 3 | `@08_member3_booking.sql` | Member 3 |
 | 4 | `@09_member4_credit.sql` | Member 4 |

@@ -144,7 +144,7 @@ SELECT table_name FROM user_tabs ORDER BY table_name;
 ## Step 5 — Run the member query files
 
 ```sql
-@06_member1_onboarding.sql
+@onboarding.sql
 @07_member2_skills.sql
 @08_member3_booking.sql
 @09_member4_credit.sql
@@ -158,7 +158,7 @@ To capture everything for the report:
 
 ```sql
 SPOOL C:\Users\gnami\Desktop\TimeBank\output_member1.txt
-@06_member1_onboarding.sql
+@onboarding.sql
 SPOOL OFF
 ```
 

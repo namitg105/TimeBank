@@ -12,7 +12,7 @@ update, 1 delete, 5 selects); each member here has 9.
 
 | Member | Module | Tables owned | File |
 |---|---|---|---|
-| 1 | Onboarding & student profiles | `DEPARTMENT`, `STUDENT`, `STUDENT_PHONE`, `TUTOR`, `TUTEE`, `TUTEE_PREFTIME` | `06_member1_onboarding.sql` |
+| 1 | Onboarding & student profiles | `DEPARTMENT`, `STUDENT`, `STUDENT_PHONE`, `TUTOR`, `TUTEE`, `TUTEE_PREFTIME` | `onboarding.sql` |
 | 2 | Skill verification & availability | `SUBJECT`, `TUTOR_SKILL`, `SLOT` | `07_member2_skills.sql` |
 | 3 | Booking engine & scheduling | `BOOKING` | `08_member3_booking.sql` |
 | 4 | Escrow & the credit ledger | `CREDIT_TXN`, `CREDIT_POLICY` | `09_member4_credit.sql` |
@@ -149,7 +149,7 @@ sqlplus timebank/timebank@//localhost:1521/XE
 
 @run_all.sql                        -- builds the database (run once)
 
-@06_member1_onboarding.sql          -- member 1 presents
+@onboarding.sql                     -- member 1 presents
 @07_member2_skills.sql              -- member 2 presents
 @08_member3_booking.sql             -- member 3 presents
 @09_member4_credit.sql              -- member 4 presents

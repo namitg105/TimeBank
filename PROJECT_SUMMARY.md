@@ -332,8 +332,8 @@ Base URL: `http://localhost:8081`. All responses are JSON; errors come back as `
 |---|---|---|
 | Me | `profile_page.dart` | profile, phones, balance, become tutor/tutee |
 | Subjects | `skills_page.dart` | what I teach, add skills, my free hours |
-| Sessions | `bookings_page.dart`, `book_session_page.dart` | book, check in with code, confirm, cancel |
-| Credits | `ledger_page.dart` | my passbook (pre-filled with my id) |
+| Sessions | `bookings_page.dart`, `book_session_page.dart` | my sessions only: book; the tutor enters the code; each side confirms or cancels its own side |
+| Credits | `ledger_page.dart` | my own passbook (nobody else's) |
 
 **Admin shell**:
 
@@ -446,6 +446,8 @@ flutter pub get
 flutter run -d chrome
 ```
 
+The app talks to `http://localhost:8081` by default. To point it somewhere else (a phone on Wi-Fi, a second API on another port) without editing code, add `--dart-define=API_BASE_URL=http://192.168.1.14:8081`.
+
 **Optional window 4 — watch the tables**
 ```powershell
 cd C:\Users\gnami\Desktop\TimeBank\sql
@@ -465,13 +467,31 @@ sqlplus timebank/timebank@localhost:1521/XE
 2. Sign up a new student → point at the INSERTs in the API window → `@check.sql` shows the row.
 3. Add a phone, remove it (multivalued attribute, INSERT / DELETE).
 4. Subjects → add a skill, add a free hour (weak entity, `slot_no` = next number).
-5. Sessions → book with another student by reg no, pick a free hour → HOLD row in the ledger.
-6. Check in with the code → confirm → TRANSFER row; passbook shows running balance.
-7. Admin → Credits → audit still BALANCED; "prove the ledger can't be edited" → ORA-20001.
+5. Sessions → book with another student by reg no, pick a free hour → HOLD row in the ledger. The session code appears in a dialog — write it down.
+6. Check in with the code → confirm → TRANSFER row; passbook shows running balance. **See "Finishing a session live" below** — a session can only be confirmed after it has ended.
+7. Admin → Credits → audit still BALANCED; Complaints → "Check the protection" → the API window shows ORA-20001.
 8. Admin → Students → deactivate (an UPDATE, not a DELETE — history stays).
-9. Admin → Complaints → rule on a dispute; show suspicious pairs.
+9. Admin → Complaints → rule on a dispute; then **create a suspicious pair live** (below) and show the detector catching it.
 
 Each member demos only their own rows of this list and their own SQL file.
+
+### Finishing a session live
+
+`trg_confirm_after_end` refuses to confirm a session before it has ended — correct, but it means a session booked for next week cannot be finished during the review. Book one in the **past** instead (the date picker allows up to 30 days back):
+
+1. Sign in as **Diya (25BCE1002)** → Sessions → + → I am learning → tutor **25BCE1001** → Database Systems → tap the **Monday 16:00–18:00** hour, *then* change the date to last Monday → book. Note the code.
+2. Each student only sees their own side's buttons, exactly as in real life:
+   - Sign out, sign in as **Aarav (25BCE1001)** → Enter code → I confirm it happened.
+   - Sign out, sign in as Diya → I confirm it happened → TRANSFER posted; both passbooks update.
+3. Short on time? The **administrator's** Sessions tab can act for both sides on one screen.
+
+### Creating a suspicious pair live
+
+The seed data has no pair who tutored each other both ways, so "suspicious pairs" starts empty — which is correct. Aarav already taught Arjun (session 7). Make Arjun teach Aarav back:
+
+1. Sign in as **Aarav (25BCE1001)** → book, I am learning, tutor **25BCE1005** (Arjun), Probability and Statistics, the **Thursday** hour, date = last Thursday.
+2. Arjun enters the code and confirms; Aarav confirms (or do both from the admin Sessions tab).
+3. Admin → Complaints → suspicious pairs → **Aarav Sharma ↔ Arjun Patel : 1 and 1 sessions**.
 
 ---
 
@@ -493,7 +513,14 @@ Each member demos only their own rows of this list and their own SQL file.
 | "studentId is required" | API running an older build | stop API, `mvn -q clean compile`, run again |
 | Stuck on sign-in page | pushed auth route covered home | fixed with `popUntil(isFirst)` |
 | "Tutor X has no slot number N" | typed slot number | replaced by free-hours picker |
-| `flutter analyze` 4 infos | style hints only | safe to ignore |
+| Free hours never appear after typing the tutor | they loaded only on Enter | fixed — they also load when you click away |
+| Session code flashes and vanishes after booking | form closed the code dialog instead of itself | fixed — form closes, then the list shows the code |
+| A student saw everyone's sessions | list loaded `/api/bookings` | fixed — students load `/api/bookings/student/{id}` |
+| "It cannot be confirmed before then" | the session has not ended yet (trigger rule) | book a past date to finish one live — see §11 |
+| "foreign key" error when teaching a new subject / new student | skill or learner role was missing | fixed — both are created before booking |
+| Two free hours overlapping on one day | no overlap check | fixed — refused with a sentence |
+| "Check the protection" showed ORA-01438 | test value too big for `NUMBER(4,1)` | fixed — now proves ORA-20001 |
+| `flutter analyze` | — | now reports **No issues found** |
 
 ---
 
@@ -510,6 +537,8 @@ Each member demos only their own rows of this list and their own SQL file.
 Commit history on main:
 
 ```
+(+ latest: end-to-end bug sweep — see §15)
+560a930 Registration numbers everywhere, free-hours picker, sign-in fix, project summary
 1fa52e0 Add the imports the restored modules needed
 afa4a58 Restore all five modules, and take the database out of the UI
 1c14fc5 Sign-in, and scope the app to Members 1 and 2
@@ -519,7 +548,6 @@ a3064a5 fixed
 663093d Add data dictionary inspection script
 9daf9a2 Add DBMS study and viva guide
 dfcc6c3 TimeBank: Oracle schema, JDBC API and Flutter front end
-(+ this commit: registration numbers everywhere, free-hours picker, sign-in fix, project summary)
 ```
 
 ---
@@ -557,6 +585,14 @@ These came from your instructions during the project:
 | Interactive batch demo file | built, then removed at your request |
 | Scope narrowed to Members 1+2, then restored to all five | final: all modules, no jargon |
 | Member 5 branch with docs | teammate has no Flutter / Claude; four commands to run |
+| **Bug sweep (2 Nov):** guided booking adds a missing skill (existing tutor) and enrols the learner (TEACH) | both rows are required by `FK_BK_SKILL` / `FK_BK_TUTEE` |
+| Learning from someone who doesn't teach that subject is refused before any enrolment | a sentence instead of ORA-02291, and no stray role rows |
+| Free-hour overlap check + `SELECT … FOR UPDATE` on the tutor row | overlapping hours made the picker ambiguous; the lock also serialises `MAX(slot_no)+1` |
+| Students see only their own sessions, and only their own side's buttons | the session code and dual confirmation mean nothing if one person can press both |
+| Passbook has no "open another student" box | credit history is private; admin has the audit screen |
+| Confirm message says when credits were actually paid | the second confirmation used to say "credits move once both confirm" |
+| "Check the protection" counts only ORA-20001 as proof | it used to report any error as "blocked" |
+| Remaining DB words removed from on-screen messages | design rule 1 |
 
 ---
 
@@ -603,10 +639,11 @@ More in `DBMS_GUIDE.md` and `MEMBER5_GUIDE.md` (branch).
 
 | Item | Status |
 |---|---|
-| Free-hours picker + reg-no booking | written; **compile and click through once** (`mvn -q clean compile`, `flutter run`) before the review |
+| Whole app | **verified 2 Nov:** clean `rerun.sql`, API compiles, `flutter analyze` clean, 35 API checks pass, student + admin flows clicked through in Chrome |
 | Admin login | one credential in config, not a hashed table — fine for the demo, mention as future work |
-| Student sign-in | registration number only, no password — prototype scope |
+| Student sign-in | registration number only, no password — prototype scope. The app shows each student only their own side's buttons, but the API itself trusts the caller (no tokens), so the rule is enforced in the UI, not the server |
 | `console-app/` | early prototype, not compiled or used |
 | Reviews / Disputes full screens | live on the `member5-feedback-disputes` branch; main has the admin Complaints tab |
-| Mobile build | runs on Chrome; Android needs `10.0.2.2` instead of `localhost` in `api_client.dart` |
-| Future work | password hashing, notifications, recommendations by preferred time, deployment on a server |
+| Mobile build | Android emulator already uses `10.0.2.2`; a real phone needs `--dart-define=API_BASE_URL=http://<PC's Wi-Fi IP>:8081` |
+| Guided booking is two steps | a role created just before a booking that then fails (e.g. slot already taken) stays — harmless under the overlapping specialization |
+| Future work | password hashing and API tokens, notifications, recommendations by preferred time, deployment on a server |

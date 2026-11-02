@@ -66,7 +66,7 @@ PROMPT
 PROMPT Now run the five member files in order -- each one builds on the
 PROMPT data the previous one created, so the sequence matters:
 PROMPT
-PROMPT   @06_member1_onboarding.sql          Member 1
+PROMPT   @onboarding.sql                     Member 1
 PROMPT   @07_member2_skills.sql              Member 2
 PROMPT   @08_member3_booking.sql             Member 3
 PROMPT   @09_member4_credit.sql              Member 4
