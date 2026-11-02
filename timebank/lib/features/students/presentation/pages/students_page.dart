@@ -65,6 +65,9 @@ class _StudentsPageState extends State<StudentsPage> {
               listenWhen: (_, s) =>
                   s is StudentActionSuccess || s is StudentFailure,
               listener: (context, state) {
+                // While the register form is open on top, it reports its
+                // own result; reacting here too would double the message.
+                if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
                 if (state is StudentActionSuccess) {
                   _toast(state.message, AppColors.positive);
                 } else if (state is StudentFailure && state.isRule) {
@@ -206,8 +209,8 @@ class _StudentList extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(
-                '${students.length} students  ·  $tutors tutoring  ·  '
-                '$both doing both',
+                '${plural(students.length, 'student')}  ·  '
+                '$tutors tutoring  ·  $both doing both',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             );

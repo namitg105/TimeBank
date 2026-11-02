@@ -30,8 +30,31 @@ class SectionLabel extends StatelessWidget {
 ///
 /// The colour is a secondary cue only — the word is always shown, so the
 /// meaning does not depend on being able to distinguish the colours.
-/// A status code as people read it: UNDER_REVIEW -> UNDER REVIEW.
-String readableStatus(String status) => status.replaceAll('_', ' ');
+/// A status code as people read it. A session the database calls
+/// CONFIRMED is simply booked: "confirmed" on screen would clash with
+/// the tutor and learner each confirming it happened.
+String readableStatus(String status) => switch (status) {
+      'CONFIRMED' => 'BOOKED',
+      'COMPLETED' => 'FINISHED',
+      'DISPUTED' => 'COMPLAINT',
+      _ => status.replaceAll('_', ' '),
+    };
+
+/// A student's roles in words. The database says TUTEE; people say learner.
+String roleLabel(String role) => switch (role) {
+      'BOTH' => 'Tutor and learner',
+      'TUTOR ONLY' => 'Tutor',
+      'TUTEE ONLY' => 'Learner',
+      _ => 'Not started yet',
+    };
+
+/// "1 session", "2 sessions" — never "1 sessions".
+String plural(int n, String one, [String? many]) =>
+    '$n ${n == 1 ? one : (many ?? '${one}s')}';
+
+/// BRONZE -> Bronze, INTERMEDIATE -> Intermediate.
+String titleCase(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1).toLowerCase();
 
 class StatusChip extends StatelessWidget {
   final String status;
@@ -204,6 +227,31 @@ class InfoBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The outcome of the last action on a screen: what happened, and
+/// whether it worked. Shown with [ResultBanner].
+class Flash {
+  final String text;
+  final bool ok;
+  const Flash.ok(this.text) : ok = true;
+  const Flash.error(Object e)
+      : text = '$e',
+        ok = false;
+}
+
+/// A green tick for success, a red mark for a refusal — never the
+/// same look for both.
+class ResultBanner extends StatelessWidget {
+  final Flash flash;
+  const ResultBanner(this.flash, {super.key});
+
+  @override
+  Widget build(BuildContext context) => InfoBanner(
+        flash.text,
+        icon: flash.ok ? Icons.check_circle_outline : Icons.error_outline,
+        tint: flash.ok ? AppColors.positive : AppColors.negative,
+      );
 }
 
 /// A bordered panel. Used instead of Card where the content needs to

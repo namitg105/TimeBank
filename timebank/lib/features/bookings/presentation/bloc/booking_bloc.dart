@@ -159,7 +159,11 @@ class BookingBloc extends Bloc<BookingEvent, BookingState> {
     final result = await bookSession(event.params);
 
     await result.fold(
-      (f) async => emit(BookingFailure(f.message, isRule: _isRule(f))),
+      (f) async {
+        emit(BookingFailure(f.message, isRule: _isRule(f)));
+        // The list behind showed "Loading" while this ran; redraw it.
+        add(_last);
+      },
       (pair) async {
         final (id, code) = pair;
         emit(BookingCreated(id, code, event.params.durationHours));

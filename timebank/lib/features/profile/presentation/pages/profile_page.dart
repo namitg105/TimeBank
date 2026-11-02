@@ -25,10 +25,10 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final ApiClient _api = sl<ApiClient>();
 
-  List<dynamic> _phones = [];
+  List<String> _phones = [];
   List<dynamic> _subjects = [];
   bool _busy = false;
-  String? _flash;
+  Flash? _flash;
 
   Session get _me => currentSession.value!;
 
@@ -38,25 +38,26 @@ class _ProfilePageState extends State<ProfilePage> {
     _load();
   }
 
+  /// Subjects for the picker, my saved phone numbers, and my roles as the
+  /// database has them now (a booking may have changed them).
   Future<void> _load() async {
+    await refreshMyRole();
     try {
       final subjects = await _api.get('/api/skills/subjects') as List;
+      final phones =
+          await _api.get('/api/students/${_me.studentId}/phones') as List;
       if (!mounted) return;
-      setState(() => _subjects = subjects);
-    } catch (_) {
-      // The subject picker degrades to empty; the rest of the page works.
+      setState(() {
+        _subjects = subjects;
+        _phones = phones.map((p) => p.toString()).toList();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _flash = Flash.error(e));
     }
   }
 
-  Future<void> _refreshRole() async {
-    final data = await _api.get('/api/roles/${_me.studentId}') as Map;
-    currentSession.value = _me.copyWith(
-      role: data['label']?.toString(),
-      badgeLevel: data['badgeLevel']?.toString(),
-      needTier: data['needTier']?.toString(),
-    );
-  }
-
+  /// Runs one action, then shows what happened and reloads.
   Future<void> _run(Future<dynamic> Function() call, String ok) async {
     setState(() {
       _busy = true;
@@ -64,14 +65,12 @@ class _ProfilePageState extends State<ProfilePage> {
     });
     try {
       await call();
-      await _refreshRole();
       if (!mounted) return;
-      setState(() => _flash = ok);
+      setState(() => _flash = Flash.ok(ok));
+      await _load();
     } catch (e) {
       if (!mounted) return;
-      final raw = '$e';
-      final i = raw.indexOf(': ');
-      setState(() => _flash = i > 0 && i < 40 ? raw.substring(i + 2) : raw);
+      setState(() => _flash = Flash.error(e));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -85,6 +84,11 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         title: const Text('My profile'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Reload',
+            onPressed: _busy ? null : _load,
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Sign out',
@@ -116,10 +120,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     _Stat(label: 'AGE', value: '${me.age}'),
                     const SizedBox(width: 24),
-                    _Stat(label: 'ROLE', value: me.role),
+                    _Stat(label: 'ROLE', value: roleLabel(me.role)),
                     if (me.badgeLevel.isNotEmpty) ...[
                       const SizedBox(width: 24),
-                      _Stat(label: 'BADGE', value: me.badgeLevel),
+                      _Stat(label: 'BADGE', value: titleCase(me.badgeLevel)),
                     ],
                   ],
                 ),
@@ -130,7 +134,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
           if (_flash != null) ...[
             const SizedBox(height: 14),
-            InfoBanner(_flash!, icon: Icons.check_circle_outline),
+            ResultBanner(_flash!),
           ],
 
           // ------------------------------------------------ roles
@@ -147,24 +151,24 @@ class _ProfilePageState extends State<ProfilePage> {
               Expanded(
                 child: _RoleCard(
                   icon: Icons.co_present_outlined,
-                  title: 'Mentor',
+                  title: 'Tutor',
                   subtitle: me.isTutor
-                      ? 'Joined · ${me.badgeLevel}'
+                      ? 'Joined · ${titleCase(me.badgeLevel)} badge'
                       : 'Teach a subject',
                   joined: me.isTutor,
-                  onTap: _busy || me.isTutor ? null : _becomeMentor,
+                  onTap: _busy || me.isTutor ? null : _becomeTutor,
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: _RoleCard(
                   icon: Icons.school_outlined,
-                  title: 'Mentee',
+                  title: 'Learner',
                   subtitle: me.isTutee
-                      ? 'Joined · ${me.needTier}'
+                      ? 'Joined · ${titleCase(me.needTier)} help'
                       : 'Get help with a subject',
                   joined: me.isTutee,
-                  onTap: _busy || me.isTutee ? null : _becomeMentee,
+                  onTap: _busy || me.isTutee ? null : _becomeLearner,
                 ),
               ),
             ],
@@ -185,21 +189,28 @@ class _ProfilePageState extends State<ProfilePage> {
             'Add as many as you like — a hostel number and a mobile, say.',
             icon: Icons.phone_outlined,
           ),
-          const SizedBox(height: 10),
-          if (_phones.isEmpty)
-            TextButton.icon(
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add a number'),
-              onPressed: _busy ? null : _addPhone,
-            )
-          else
-            for (final p in _phones)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.phone, size: 18),
-                title: Text(p.toString()),
+          const SizedBox(height: 6),
+          for (final p in _phones)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.phone, size: 18),
+              title: Text(p),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline, size: 19),
+                tooltip: 'Remove this number',
+                onPressed: _busy ? null : () => _removePhone(p),
               ),
+            ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              icon: const Icon(Icons.add, size: 18),
+              label: Text(
+                  _phones.isEmpty ? 'Add a number' : 'Add another number'),
+              onPressed: _busy ? null : _addPhone,
+            ),
+          ),
         ],
       ),
     );
@@ -207,10 +218,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // ----------------------------------------------------------- actions
 
-  Future<void> _becomeMentor() async {
+  Future<void> _becomeTutor() async {
     final subjectId = await _pickSubject(
       'Which subject will you teach?',
-      'Pick the one you know best. You can add more afterwards.',
+      'Pick the one you know best. You can add more on the Subjects tab.',
     );
     if (subjectId == null) return;
 
@@ -221,22 +232,36 @@ class _ProfilePageState extends State<ProfilePage> {
         'competency': 'PROFICIENT',
         'grade': 'A',
       }),
-      'You are a mentor now. Publish the hours you are free on the '
-      'Skills screen so people can find you.',
+      'You are a tutor now. Add the hours you are free on the Subjects '
+      'tab, under My hours, so people can book you.',
     );
   }
 
-  Future<void> _becomeMentee() async {
+  Future<void> _becomeLearner() async {
+    const tiers = [
+      ('BASIC', 'Basic', 'A little help now and then'),
+      ('INTERMEDIATE', 'Intermediate', 'Regular help with a subject'),
+      ('ADVANCED', 'Advanced', 'A lot of help, often'),
+    ];
+
     final tier = await showDialog<String>(
       context: context,
       builder: (dialogContext) => SimpleDialog(
         backgroundColor: AppColors.surface,
         title: const Text('How much help do you need?'),
         children: [
-          for (final t in ['BASIC', 'INTERMEDIATE', 'ADVANCED'])
+          for (final (value, label, hint) in tiers)
             SimpleDialogOption(
-              onPressed: () => Navigator.pop(dialogContext, t),
-              child: Text(t),
+              onPressed: () => Navigator.pop(dialogContext, value),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label),
+                  Text(hint,
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.textSecondary)),
+                ],
+              ),
             ),
         ],
       ),
@@ -248,8 +273,7 @@ class _ProfilePageState extends State<ProfilePage> {
         'needTier': tier,
         'timeBands': ['EVENING'],
       }),
-      'You are a mentee now. Browse the subjects and find someone to '
-      'help you.',
+      'You are a learner now. Book a session on the Sessions tab.',
     );
   }
 
@@ -262,7 +286,9 @@ class _ProfilePageState extends State<ProfilePage> {
         title: const Text('Add a phone number'),
         content: TextField(
           controller: controller,
+          autofocus: true,
           keyboardType: TextInputType.phone,
+          maxLength: 10,
           decoration: const InputDecoration(hintText: '10 digits'),
         ),
         actions: [
@@ -278,22 +304,37 @@ class _ProfilePageState extends State<ProfilePage> {
         ],
       ),
     );
+    controller.dispose();
 
-    if (phone == null || !RegExp(r'^[0-9]{10}$').hasMatch(phone)) return;
+    if (phone == null || !mounted) return; // cancelled
+    if (!RegExp(r'^[0-9]{10}$').hasMatch(phone)) {
+      setState(() => _flash =
+          const Flash.error('A phone number must be exactly 10 digits.'));
+      return;
+    }
 
     await _run(
       () => _api.post('/api/students/${_me.studentId}/phones',
           body: {'phone': phone}),
       'Number added.',
     );
-    if (mounted) setState(() => _phones = [..._phones, phone]);
   }
+
+  Future<void> _removePhone(String phone) => _run(
+        () => _api.delete('/api/students/${_me.studentId}/phones/$phone'),
+        'Number removed.',
+      );
 
   Future<int?> _pickSubject(String title, String note) async {
     if (_subjects.isEmpty) {
       await _load();
     }
-    if (!mounted || _subjects.isEmpty) return null;
+    if (!mounted) return null;
+    if (_subjects.isEmpty) {
+      setState(() => _flash = const Flash.error(
+          'The subject list could not be loaded. Press reload and try again.'));
+      return null;
+    }
 
     return showDialog<int>(
       context: context,

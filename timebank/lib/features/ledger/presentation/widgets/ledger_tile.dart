@@ -36,7 +36,7 @@ class LedgerTile extends StatelessWidget {
                 Row(
                   children: [
                     Text(
-                      entry.txnType,
+                      entry.typeLabel,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,

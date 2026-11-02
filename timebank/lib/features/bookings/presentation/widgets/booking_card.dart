@@ -71,7 +71,7 @@ class BookingCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _Party(
-                  label: 'TUTEE',
+                  label: 'LEARNER',
                   name: booking.tuteeName,
                   tint: AppColors.info,
                   confirmed: booking.tuteeConfirmed,
@@ -164,6 +164,42 @@ class BookingCard extends StatelessWidget {
                     'aside · ${booking.nextAction}',
                     style: const TextStyle(
                         fontSize: 11.5, color: AppColors.accent),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // This value is present only in the learner's response. Keeping
+          // it on the card until check-in fixes the real-world case where
+          // the tutor created the booking or the original dialog was closed.
+          if (booking.sessionCode != null &&
+              booking.sessionCode!.isNotEmpty &&
+              booking.isUpcoming &&
+              !booking.checkedIn) ...[
+            const SizedBox(height: 11),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+              decoration: BoxDecoration(
+                color: AppColors.info.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: AppColors.info.withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.key_outlined, size: 15, color: AppColors.info),
+                  const SizedBox(width: 8),
+                  const Text('Your session code: ',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  SelectableText(
+                    booking.sessionCode!,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      letterSpacing: 2.2,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.info,
+                    ),
                   ),
                 ],
               ),
@@ -316,7 +352,7 @@ class _Actions extends StatelessWidget {
             child: _ConfirmButton(
               bookingId: booking.bookingId,
               role: 'TUTEE',
-              label: isAdmin ? 'Tutee confirms' : 'I confirm it happened',
+              label: isAdmin ? 'Learner confirms' : 'I confirm it happened',
             ),
           ),
         if (!tutorCanConfirm && !tuteeCanConfirm)
@@ -350,7 +386,7 @@ class _Actions extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Ask the student to read out the 8-character code they were '
+              'Ask the learner to read out the 8-character code they were '
               'given when they booked.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
@@ -451,9 +487,9 @@ class _CancelButton extends StatelessWidget {
         title: const Text('Cancel this session?'),
         content: const Text(
           'Who cancels decides where the credits go.\n\n'
-          'If the tutor cancels, or the student cancels more than 24 hours '
-          'ahead, the student gets everything back.\n\n'
-          'If the student cancels inside 24 hours, the credits are split — '
+          'If the tutor cancels, or the learner cancels more than 24 hours '
+          'ahead, the learner gets everything back.\n\n'
+          'If the learner cancels inside 24 hours, the credits are split — '
           'the tutor had already kept that hour free.',
           style: TextStyle(fontSize: 13, height: 1.5),
         ),
@@ -465,7 +501,7 @@ class _CancelButton extends StatelessWidget {
           if (byRole == null) ...[
             TextButton(
               onPressed: () => _cancelAs(dialogContext, bloc, 'TUTEE'),
-              child: const Text('Student cancels'),
+              child: const Text('Learner cancels'),
             ),
             _dangerButton(
               onPressed: () => _cancelAs(dialogContext, bloc, 'TUTOR'),

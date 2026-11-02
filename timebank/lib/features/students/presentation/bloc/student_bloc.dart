@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:fpdart/fpdart.dart';
 import '../../../../core/error/failure.dart';
 import '../../../../core/usecase/usecase.dart';
 import '../../domain/entities/student.dart';
@@ -34,6 +35,13 @@ final class StudentRegistered extends StudentEvent {
 final class StudentDeactivated extends StudentEvent {
   final int studentId;
   const StudentDeactivated(this.studentId);
+  @override
+  List<Object?> get props => [studentId];
+}
+
+final class StudentReactivated extends StudentEvent {
+  final int studentId;
+  const StudentReactivated(this.studentId);
   @override
   List<Object?> get props => [studentId];
 }
@@ -96,21 +104,30 @@ class StudentBloc extends Bloc<StudentEvent, StudentState> {
   final SearchStudents searchStudents;
   final RegisterStudent registerStudent;
   final DeactivateStudent deactivateStudent;
+  final ReactivateStudent reactivateStudent;
+
+  /// The last list the screen asked for — everyone, or a search. It is
+  /// replayed after every write, so the list redraws (never stuck on
+  /// "Loading") and keeps the search the user typed.
+  StudentEvent _last = const StudentsRequested();
 
   StudentBloc({
     required this.getStudents,
     required this.searchStudents,
     required this.registerStudent,
     required this.deactivateStudent,
+    required this.reactivateStudent,
   }) : super(const StudentInitial()) {
     on<StudentsRequested>(_onRequested);
     on<StudentsSearched>(_onSearched);
     on<StudentRegistered>(_onRegistered);
     on<StudentDeactivated>(_onDeactivated);
+    on<StudentReactivated>(_onReactivated);
   }
 
   Future<void> _onRequested(
       StudentsRequested event, Emitter<StudentState> emit) async {
+    _last = event;
     emit(const StudentLoading());
     final result = await getStudents(const NoParams());
     // fold forces both branches to be handled. There is no way to read
@@ -123,6 +140,7 @@ class StudentBloc extends Bloc<StudentEvent, StudentState> {
 
   Future<void> _onSearched(
       StudentsSearched event, Emitter<StudentState> emit) async {
+    _last = event;
     emit(const StudentLoading());
     final result = await searchStudents(event.query);
     emit(result.fold(
@@ -137,25 +155,40 @@ class StudentBloc extends Bloc<StudentEvent, StudentState> {
     final result = await registerStudent(event.params);
 
     await result.fold(
-      (f) async => emit(StudentFailure(f.message, isRule: _isRule(f))),
+      (f) async {
+        emit(StudentFailure(f.message, isRule: _isRule(f)));
+        add(_last);
+      },
       (student) async {
         emit(StudentActionSuccess(
             '${student.fullName} registered with '
             '${student.creditBalance.toStringAsFixed(1)} starter credits.'));
-        // Reload so the new row appears without the page asking.
-        add(const StudentsRequested());
+        add(_last);
       },
     );
   }
 
   Future<void> _onDeactivated(
       StudentDeactivated event, Emitter<StudentState> emit) async {
-    final result = await deactivateStudent(event.studentId);
+    await _finish(await deactivateStudent(event.studentId), emit);
+  }
+
+  Future<void> _onReactivated(
+      StudentReactivated event, Emitter<StudentState> emit) async {
+    await _finish(await reactivateStudent(event.studentId), emit);
+  }
+
+  /// Shared tail for the two account actions: report, then reload.
+  Future<void> _finish(
+      Either<Failure, String> result, Emitter<StudentState> emit) async {
     await result.fold(
-      (f) async => emit(StudentFailure(f.message, isRule: _isRule(f))),
+      (f) async {
+        emit(StudentFailure(f.message, isRule: _isRule(f)));
+        add(_last);
+      },
       (message) async {
         emit(StudentActionSuccess(message));
-        add(const StudentsRequested());
+        add(_last);
       },
     );
   }

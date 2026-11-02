@@ -51,15 +51,39 @@ class LedgerEntry extends Equatable {
   String get origin =>
       bookingId == null ? 'System credit' : 'Session #$bookingId';
 
-  /// Plain-language explanation of what this row did.
-  String get explanation => switch (txnType) {
-        'GRANT'    => 'Credits added to the account',
-        'HOLD'     => 'Set aside for a booking',
-        'RELEASE'  => 'Returned after a cancellation',
-        'TRANSFER' => 'Payment for a completed session',
-        'PENALTY'  => 'Deduction after a dispute',
-        _          => remarks,
+  /// The kind of row in a word, instead of the ledger's code.
+  String get typeLabel => switch (txnType) {
+        'GRANT'    => 'ADDED',
+        'HOLD'     => 'SET ASIDE',
+        'RELEASE'  => 'RETURNED',
+        'TRANSFER' => 'RECEIVED',
+        'PENALTY'  => 'DEDUCTED',
+        _          => txnType,
       };
+
+  /// Plain-language explanation of what this row did. The same kind of
+  /// row can come from different events, which the remark tells apart.
+  String get explanation {
+    final r = remarks.toLowerCase();
+    return switch (txnType) {
+      'GRANT' => r.contains('starter')
+          ? 'Starting credits for a new account'
+          : 'Credits added by the administrator',
+      'HOLD' => 'Set aside for a booking',
+      'RELEASE' => r.contains('dispute')
+          ? 'Returned after a complaint was settled'
+          : 'Returned after a cancellation',
+      'TRANSFER' => r.contains('cancel')
+          ? 'Paid for a session cancelled at the last minute'
+          : r.contains('dispute')
+              ? 'Paid after a complaint was settled'
+              : 'Payment for a completed session',
+      'PENALTY' => r.contains('dispute')
+          ? 'Deducted after a complaint was settled'
+          : 'Deducted by the administrator',
+      _ => remarks,
+    };
+  }
 
   @override
   List<Object?> get props => [txnId, amount, balanceAfter];

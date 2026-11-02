@@ -33,10 +33,13 @@ abstract interface class StudentRepository {
     String? phone,
   });
 
-  /// Closes an account.
+  /// Deactivates an account.
   ///
   /// This is a soft delete. A student with bookings or ledger rows can
   /// never be physically removed -- those foreign keys have no ON DELETE
   /// clause, so the database refuses in order to keep history intact.
   Future<Either<Failure, String>> deactivate(int studentId);
+
+  /// Undoes [deactivate]. Possible only because nothing was deleted.
+  Future<Either<Failure, String>> reactivate(int studentId);
 }

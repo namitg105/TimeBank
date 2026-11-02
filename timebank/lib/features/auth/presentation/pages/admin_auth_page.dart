@@ -152,10 +152,7 @@ class _AdminAuthPageState extends State<AdminAuthPage> {
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
-      final raw = '$e';
-      final i = raw.indexOf(': ');
-      setState(() => _error =
-          i > 0 && i < 40 ? raw.substring(i + 2) : raw);
+      setState(() => _error = '$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

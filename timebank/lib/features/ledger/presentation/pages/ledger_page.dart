@@ -79,7 +79,7 @@ class _LedgerPageState extends State<LedgerPage> {
                       ? const EmptyState(
                           icon: Icons.receipt_long_outlined,
                           title: 'No transactions',
-                          hint: 'Check the student number.',
+                          hint: 'Book or teach a session and it will show here.',
                         )
                       : _Passbook(entries: entries, balance: balance),
                 _ => const LoadingView(),

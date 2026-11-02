@@ -44,7 +44,6 @@ class _AdminPageState extends State<AdminPage> {
   String _filter = 'ALL';
   bool _loading = true;
   String? _error;
-  String? _lastResult;
 
   @override
   void initState() {
@@ -83,19 +82,38 @@ class _AdminPageState extends State<AdminPage> {
     }
   }
 
+  /// Runs one action and reports the outcome at the bottom of the
+  /// screen, so it is seen wherever on the page the button was.
   Future<void> _act(Future<dynamic> Function() call) async {
     try {
       final res = await call();
-      final msg = res is Map
-          ? (res['message'] ?? res['result'] ?? 'Done').toString()
-          : res.toString();
+      final msg = res is Map && res['message'] != null
+          ? res['message'].toString()
+          : 'Done.';
       if (!mounted) return;
-      setState(() => _lastResult = msg);
+      _show(Flash.ok(msg));
       await _load();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _lastResult = '$e');
+      _show(Flash.error(e));
     }
+  }
+
+  void _show(Flash flash) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Row(
+          children: [
+            Icon(flash.ok ? Icons.check_circle_outline : Icons.error_outline,
+                size: 18,
+                color: flash.ok ? AppColors.positive : AppColors.negative),
+            const SizedBox(width: 10),
+            Expanded(child: Text(flash.text)),
+          ],
+        ),
+        duration: const Duration(seconds: 5),
+      ));
   }
 
   @override
@@ -131,7 +149,7 @@ class _AdminPageState extends State<AdminPage> {
         ),
 
         // ---------------------------------------------------- who
-        const SectionLabel('Signed in as'),
+        const SectionLabel('Rulings are recorded as'),
         Panel(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,7 +183,7 @@ class _AdminPageState extends State<AdminPage> {
               ),
               const SizedBox(height: 10),
               const Text(
-                'Complaints you close are recorded against this name.',
+                'Pick whose name goes on the rulings you make here.',
                 style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
               ),
             ],
@@ -194,17 +212,6 @@ class _AdminPageState extends State<AdminPage> {
             ],
           ),
         ),
-
-        if (_lastResult != null) ...[
-          const SizedBox(height: 12),
-          InfoBanner(
-            _lastResult!,
-            icon: Icons.terminal,
-            tint: _lastResult!.contains('Blocked')
-                ? AppColors.positive
-                : AppColors.accent,
-          ),
-        ],
 
         // ---------------------------------------------------- disputes
         SectionLabel(
@@ -277,12 +284,12 @@ class _AdminPageState extends State<AdminPage> {
             const SizedBox(height: 6),
             Text(
               '${d['subjectCode']}  ·  tutor ${d['tutorName']}  ·  '
-              'tutee ${d['tuteeName']}',
+              'learner ${d['tuteeName']}',
               style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 8),
             Text(
-              'Raised by the ${d['raisedByRole']} on ${d['raisedOn']}',
+              'Raised by the ${d['raisedByRole'] == 'TUTOR' ? 'tutor' : 'learner'} on ${d['raisedOn']}',
               style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 6),
@@ -324,7 +331,7 @@ class _AdminPageState extends State<AdminPage> {
                     onPressed: _adminId == null
                         ? null
                         : () => _askRuling(bookingId, disputeNo, 'TUTEE'),
-                    child: const Text('Side with the student',
+                    child: const Text('Side with the learner',
                         style: TextStyle(fontSize: 12.5)),
                   ),
                   FilledButton.tonal(
@@ -347,7 +354,7 @@ class _AdminPageState extends State<AdminPage> {
     final controller = TextEditingController(
       text: inFavour == 'TUTEE'
           ? 'Nobody checked in, so the session did not take place. '
-            'Credits returned to the student.'
+            'Credits returned to the learner.'
           : 'The tutor was there and the session went ahead as arranged.',
     );
 
@@ -355,7 +362,7 @@ class _AdminPageState extends State<AdminPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: Text(inFavour == 'TUTEE' ? 'Side with the student' : 'Side with the tutor'),
+        title: Text(inFavour == 'TUTEE' ? 'Side with the learner' : 'Side with the tutor'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,7 +394,11 @@ class _AdminPageState extends State<AdminPage> {
       ),
     );
 
-    if (note == null || note.isEmpty) return;
+    if (note == null) return; // cancelled
+    if (note.isEmpty) {
+      _show(const Flash.error('Write a short note explaining the ruling.'));
+      return;
+    }
 
     await _act(() => _api.post(
           '/api/admin/disputes/$bookingId/$disputeNo/resolve',

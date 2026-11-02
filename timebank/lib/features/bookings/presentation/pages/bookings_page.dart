@@ -25,7 +25,7 @@ class _BookingsPageState extends State<BookingsPage> {
     'CONFIRMED': 'Upcoming',
     'COMPLETED': 'Finished',
     'CANCELLED': 'Cancelled',
-    'DISPUTED': 'Disputed',
+    'DISPUTED': 'Complaints',
   };
 
   /// A student sees only their own sessions; the administrator sees all.
@@ -77,6 +77,8 @@ class _BookingsPageState extends State<BookingsPage> {
                 if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
                 switch (state) {
                   case BookingActionSuccess(:final message):
+                    // Finishing a session can raise the tutor's badge.
+                    refreshMyRole();
                     _toast(message, AppColors.positive);
                   case BookingFailure(:final message, :final isRule)
                       when isRule:
@@ -113,9 +115,9 @@ class _BookingsPageState extends State<BookingsPage> {
   /// shows the session code. The order matters: shown any earlier, the
   /// dialog would sit above the form and be closed along with it.
   ///
-  /// The code is displayed once and the tutee has to keep it: the tutor
-  /// types it in at the start of the session, which proves the tutee
-  /// actually turned up.
+  /// The learner gets the code immediately when they book. It also stays
+  /// on the learner's session card until check-in, so a dismissed dialog
+  /// or a tutor-created booking never strands the learner without it.
   Future<void> _openBooking() async {
     final bloc = context.read<BookingBloc>();
     final created =
@@ -126,6 +128,15 @@ class _BookingsPageState extends State<BookingsPage> {
       ),
     ));
     if (created == null || !mounted) return;
+
+    // Booking can make you a learner or a tutor for the first time.
+    refreshMyRole();
+
+    if (created.sessionCode.isEmpty) {
+      _toast('Booked. The learner can find their session code in Sessions.',
+          AppColors.positive);
+      return;
+    }
 
     await showDialog<void>(
       context: context,
@@ -247,9 +258,9 @@ class _BookingList extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
               escrow > 0
-                  ? '${bookings.length} sessions  ·  '
+                  ? '${plural(bookings.length, 'session')}  ·  '
                       '${escrow.toStringAsFixed(1)} credits set aside'
-                  : '${bookings.length} sessions',
+                  : plural(bookings.length, 'session'),
               style: Theme.of(context).textTheme.bodySmall,
             ),
           );

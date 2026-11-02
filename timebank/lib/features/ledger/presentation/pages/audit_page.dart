@@ -94,9 +94,11 @@ class _AuditPageState extends State<AuditPage> {
                 LedgerLoading() => const LoadingView(label: 'Checking'),
                 LedgerFailure(:final message) => ErrorView(
                     message: message,
-                    onRetry: () => context
-                        .read<LedgerBloc>()
-                        .add(const AuditRequested()),
+                    onRetry: () => context.read<LedgerBloc>().add(
+                          _showingReports
+                              ? const ReportsRequested()
+                              : const AuditRequested(),
+                        ),
                   ),
                 AuditLoaded(:final audit) => _AuditView(audit: audit),
                 ReportsLoaded(:final leaderboard, :final collusion) =>
@@ -232,7 +234,7 @@ class _AuditView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _Explain('1',
-                  'When a session is booked, the student pays straight away.'),
+                  'When a session is booked, the learner pays straight away.'),
               _Explain('2',
                   'When it is finished, the tutor is paid the same amount.'),
               _Explain('3',

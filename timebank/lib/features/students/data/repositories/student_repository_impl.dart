@@ -4,6 +4,7 @@ import '../../../../core/error/failure.dart';
 import '../../domain/entities/student.dart';
 import '../../domain/repositories/student_repository.dart';
 import '../datasources/student_remote_datasource.dart';
+import '../../../../core/error/guard.dart';
 
 /// Where exceptions stop and [Failure]s begin.
 ///
@@ -23,15 +24,15 @@ class StudentRepositoryImpl implements StudentRepository {
 
   @override
   Future<Either<Failure, List<Student>>> getAll() =>
-      _guard(() => remote.getAll());
+      guard(() => remote.getAll());
 
   @override
   Future<Either<Failure, List<Student>>> search(String query) =>
-      _guard(() => remote.search(query));
+      guard(() => remote.search(query));
 
   @override
   Future<Either<Failure, double>> balanceOf(int studentId) =>
-      _guard(() => remote.balanceOf(studentId));
+      guard(() => remote.balanceOf(studentId));
 
   @override
   Future<Either<Failure, Student>> register({
@@ -46,7 +47,7 @@ class StudentRepositoryImpl implements StudentRepository {
     String? city,
     String? phone,
   }) =>
-      _guard(() => remote.register({
+      guard(() => remote.register({
             'regNo': regNo,
             'firstName': firstName,
             'lastName': lastName,
@@ -63,28 +64,13 @@ class StudentRepositoryImpl implements StudentRepository {
 
   @override
   Future<Either<Failure, String>> deactivate(int studentId) =>
-      _guard(() => remote.deactivate(studentId));
+      guard(() => remote.deactivate(studentId));
+
+  @override
+  Future<Either<Failure, String>> reactivate(int studentId) =>
+      guard(() => remote.reactivate(studentId));
 
   // -------------------------------------------------------------------
-
-  /// Runs a data-source call and converts anything thrown into a Failure.
-  ///
-  /// Writing it once here means no repository method needs its own
-  /// try/catch, and none of them can accidentally let an exception
-  /// escape into the domain layer.
-  Future<Either<Failure, T>> _guard<T>(Future<T> Function() call) async {
-    try {
-      return Right(await call());
-    } on ServerException catch (e) {
-      return Left(e.isBusinessRule
-          ? RuleFailure(e.message, oracleCode: e.oracleCode)
-          : ServerFailure(e.message));
-    } on NetworkException catch (e) {
-      return Left(NetworkFailure(e.message));
-    } catch (e) {
-      return Left(ServerFailure('Unexpected error: $e'));
-    }
-  }
 
   static String _isoDate(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'

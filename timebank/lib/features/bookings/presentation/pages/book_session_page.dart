@@ -141,7 +141,7 @@ class _BookSessionPageState extends State<BookSessionPage> {
                     ? 'If you have not booked help before, this sets you up '
                       'as a learner. Anything you teach stays as it is.'
                     : 'If you have not taught before, this sets you up as a '
-                      'mentor for the subject below. Anything you learn '
+                      'tutor for the subject below. Anything you learn '
                       'stays as it is.',
                 icon: Icons.account_tree_outlined,
               ),
@@ -160,7 +160,7 @@ class _BookSessionPageState extends State<BookSessionPage> {
                   decoration: InputDecoration(
                     labelText: _intent == 'LEARN'
                         ? "Tutor's registration number"
-                        : "Student's registration number",
+                        : "Learner's registration number",
                     hintText: '25BCE1001',
                   ),
                   validator: (v) =>
@@ -224,6 +224,7 @@ class _BookSessionPageState extends State<BookSessionPage> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _venue,
+                maxLength: 60,
                 style: const TextStyle(fontSize: 14.5),
                 decoration: InputDecoration(
                   labelText: _mode == 'ONLINE' ? 'Meeting link' : 'Room',
@@ -298,12 +299,10 @@ class _BookSessionPageState extends State<BookSessionPage> {
       });
     } catch (e) {
       if (!mounted) return;
-      final raw = '$e';
-      final i = raw.indexOf(': ');
       setState(() {
         _slots = [];
         _slotPicked = null;
-        _slotError = i > 0 && i < 40 ? raw.substring(i + 2) : raw;
+        _slotError = '$e';
         _loadingSlots = false;
       });
     }
@@ -742,7 +741,7 @@ class _CostSummary extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('COST TO THE TUTEE',
+                Text('COST TO THE LEARNER',
                     style: Theme.of(context).textTheme.labelSmall),
                 const SizedBox(height: 6),
                 const Text(

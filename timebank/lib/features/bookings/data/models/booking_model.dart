@@ -15,6 +15,7 @@ class BookingModel extends Booking {
     required super.creditsHeld,
     required super.confirmations,
     required super.checkedIn,
+    super.sessionCode,
     required super.tutorId,
     required super.tuteeId,
   });
@@ -35,6 +36,7 @@ class BookingModel extends Booking {
         creditsHeld: _double(json['creditsHeld']),
         confirmations: json['confirmations']?.toString() ?? 'N/N',
         checkedIn: json['checkedIn'] == true,
+        sessionCode: json['sessionCode']?.toString(),
         tutorId: _int(json['tutorId']),
         tuteeId: _int(json['tuteeId']),
       );

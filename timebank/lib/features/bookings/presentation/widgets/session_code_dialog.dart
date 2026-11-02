@@ -44,7 +44,7 @@ class SessionCodeDialog extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'The student keeps this code and reads it to the tutor when '
+            'The learner keeps this code and reads it to the tutor when '
             'they meet. Do not share it with anyone else.',
             style: TextStyle(fontSize: 13.5, color: AppColors.textSecondary),
           ),

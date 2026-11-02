@@ -1,9 +1,9 @@
 import 'package:fpdart/fpdart.dart';
-import 'package:timebank/core/error/exceptions.dart';
 import 'package:timebank/core/error/failure.dart';
 import '../../domain/entities/booking.dart';
 import '../../domain/repositories/booking_repository.dart';
 import '../datasources/booking_remote_datasource.dart';
+import '../../../../core/error/guard.dart';
 
 class BookingRepositoryImpl implements BookingRepository {
   final BookingRemoteDataSource remote;
@@ -11,11 +11,11 @@ class BookingRepositoryImpl implements BookingRepository {
 
   @override
   Future<Either<Failure, List<Booking>>> getAll({String? status}) =>
-      _guard(() => remote.getAll(status: status));
+      guard(() => remote.getAll(status: status));
 
   @override
   Future<Either<Failure, List<Booking>>> forStudent(int studentId) =>
-      _guard(() => remote.forStudent(studentId));
+      guard(() => remote.forStudent(studentId));
 
   @override
   Future<Either<Failure, (int, String)>> book({
@@ -34,7 +34,7 @@ class BookingRepositoryImpl implements BookingRepository {
     // No intent: the plain endpoint, which assumes both people are
     // already in the right subclass tables.
     if (intent == null || studentRef == null) {
-      return _guard(() => remote.book({
+      return guard(() => remote.book({
             'tuteeId': tuteeRef,
             'tutorId': tutorRef,
             'subjectId': subjectId,
@@ -52,7 +52,7 @@ class BookingRepositoryImpl implements BookingRepository {
     // is whoever is on the other side of the session.
     final counterpartRef = intent == 'LEARN' ? tutorRef : tuteeRef;
 
-    return _guard(() async {
+    return guard(() async {
       final (id, code, _) = await remote.bookGuided({
         'studentId': studentRef,
         'intent': intent,
@@ -71,33 +71,15 @@ class BookingRepositoryImpl implements BookingRepository {
 
   @override
   Future<Either<Failure, String>> checkIn(int bookingId, String sessionCode) =>
-      _guard(() => remote.checkIn(bookingId, sessionCode));
+      guard(() => remote.checkIn(bookingId, sessionCode));
 
   @override
   Future<Either<Failure, String>> confirm(int bookingId, String role) =>
-      _guard(() => remote.confirm(bookingId, role));
+      guard(() => remote.confirm(bookingId, role));
 
   @override
   Future<Either<Failure, String>> cancel(int bookingId, String byRole) =>
-      _guard(() => remote.cancel(bookingId, byRole));
-
-  // Most failures from this feature are RuleFailures, because almost
-  // every booking rule lives in a database trigger: the slot is taken,
-  // the session has not ended yet, nobody checked in, the pair has hit
-  // its weekly cap. Those messages go straight to the user.
-  Future<Either<Failure, T>> _guard<T>(Future<T> Function() call) async {
-    try {
-      return Right(await call());
-    } on ServerException catch (e) {
-      return Left(e.isBusinessRule
-          ? RuleFailure(e.message, oracleCode: e.oracleCode)
-          : ServerFailure(e.message));
-    } on NetworkException catch (e) {
-      return Left(NetworkFailure(e.message));
-    } catch (e) {
-      return Left(ServerFailure('Unexpected error: $e'));
-    }
-  }
+      guard(() => remote.cancel(bookingId, byRole));
 
   static String _isoDate(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'

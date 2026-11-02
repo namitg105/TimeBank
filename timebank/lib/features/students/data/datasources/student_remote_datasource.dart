@@ -9,6 +9,7 @@ abstract interface class StudentRemoteDataSource {
   Future<double> balanceOf(int studentId);
   Future<StudentModel> register(Map<String, dynamic> body);
   Future<String> deactivate(int studentId);
+  Future<String> reactivate(int studentId);
 }
 
 class StudentRemoteDataSourceImpl implements StudentRemoteDataSource {
@@ -47,6 +48,12 @@ class StudentRemoteDataSourceImpl implements StudentRemoteDataSource {
   @override
   Future<String> deactivate(int studentId) async {
     final data = await client.delete('/api/students/$studentId');
-    return (data as Map)['message']?.toString() ?? 'Account closed.';
+    return (data as Map)['message']?.toString() ?? 'Account deactivated.';
+  }
+
+  @override
+  Future<String> reactivate(int studentId) async {
+    final data = await client.post('/api/students/$studentId/reactivate');
+    return (data as Map)['message']?.toString() ?? 'Account reactivated.';
   }
 }

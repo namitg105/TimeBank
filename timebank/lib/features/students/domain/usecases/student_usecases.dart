@@ -123,3 +123,12 @@ final class DeactivateStudent implements UseCase<String, int> {
   Future<Either<Failure, String>> call(int studentId) =>
       repository.deactivate(studentId);
 }
+
+final class ReactivateStudent implements UseCase<String, int> {
+  final StudentRepository repository;
+  const ReactivateStudent(this.repository);
+
+  @override
+  Future<Either<Failure, String>> call(int studentId) =>
+      repository.reactivate(studentId);
+}

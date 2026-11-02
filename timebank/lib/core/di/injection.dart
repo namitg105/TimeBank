@@ -52,12 +52,14 @@ Future<void> initDependencies({String? baseUrl}) async {
     ..registerLazySingleton(() => SearchStudents(sl()))
     ..registerLazySingleton(() => RegisterStudent(sl()))
     ..registerLazySingleton(() => DeactivateStudent(sl()))
+    ..registerLazySingleton(() => ReactivateStudent(sl()))
     ..registerFactory(
       () => StudentBloc(
         getStudents: sl(),
         searchStudents: sl(),
         registerStudent: sl(),
         deactivateStudent: sl(),
+        reactivateStudent: sl(),
       ),
     );
 

@@ -1,5 +1,8 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/di/injection.dart';
+import '../../core/network/api_client.dart';
+
 /// Who is signed in, for as long as the app is open.
 ///
 /// Deliberately in memory only. Persisting it would mean storing a
@@ -74,3 +77,23 @@ class Session {
 /// value and no transitions worth modelling: you are signed in or you
 /// are not.
 final currentSession = ValueNotifier<Session?>(null);
+
+/// Re-reads the signed-in student's roles from the API.
+///
+/// Called after anything that can change them: becoming a tutor or a
+/// learner, a booking that enrols you, or a finished session that
+/// raises your badge. Screens listening to [currentSession] update.
+Future<void> refreshMyRole() async {
+  final me = currentSession.value;
+  if (me == null || me.isAdmin || me.studentId == null) return;
+  try {
+    final data = await sl<ApiClient>().get('/api/roles/${me.studentId}') as Map;
+    currentSession.value = me.copyWith(
+      role: data['label']?.toString(),
+      badgeLevel: data['badgeLevel']?.toString(),
+      needTier: data['needTier']?.toString(),
+    );
+  } catch (_) {
+    // Not worth interrupting anyone over: the next refresh catches up.
+  }
+}

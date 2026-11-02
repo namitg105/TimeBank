@@ -30,7 +30,8 @@ class _SkillsPageState extends State<SkillsPage> {
   int _tab = 0;
   bool _loading = true;
   String? _error;
-  String? _flash;
+  Flash? _flash;
+  String _lastRole = '';
 
   List<dynamic> _matrix = [];
   List<dynamic> _slots = [];
@@ -43,6 +44,23 @@ class _SkillsPageState extends State<SkillsPage> {
   @override
   void initState() {
     super.initState();
+    _lastRole = _me.role;
+    currentSession.addListener(_onSessionChanged);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    currentSession.removeListener(_onSessionChanged);
+    super.dispose();
+  }
+
+  /// Becoming a tutor on the Me tab changes what this screen can show,
+  /// so reload when the role changes.
+  void _onSessionChanged() {
+    final s = currentSession.value;
+    if (s == null || s.role == _lastRole) return;
+    _lastRole = s.role;
     _load();
   }
 
@@ -116,16 +134,25 @@ class _SkillsPageState extends State<SkillsPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
           child: SegmentedButton<int>(
-            segments: const [
-              ButtonSegment(value: 0, label: Text('Subjects')),
-              ButtonSegment(value: 1, label: Text('My hours')),
-              ButtonSegment(value: 2, label: Text('Browse')),
+            segments: [
+              const ButtonSegment(value: 0, label: Text('Subjects')),
+              ButtonSegment(
+                  value: 1, label: Text(_isAdmin ? 'Hours' : 'My hours')),
+              const ButtonSegment(value: 2, label: Text('Browse')),
             ],
             selected: {_tab},
             showSelectedIcon: false,
-            onSelectionChanged: (s) => setState(() => _tab = s.first),
+            onSelectionChanged: (s) => setState(() {
+              _tab = s.first;
+              _flash = null;
+            }),
           ),
         ),
+        if (_flash != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: ResultBanner(_flash!),
+          ),
         Expanded(
           child: switch (_tab) {
             0 => _matrixTab(),
@@ -140,30 +167,47 @@ class _SkillsPageState extends State<SkillsPage> {
   // ----------------------------------------------------------- matrix
 
   Widget _matrixTab() {
-    final cross = _matrix.where((r) => r['note'] == 'CROSS-DEPARTMENT').length;
+    // Count people, not rows: one tutor may teach several such subjects.
+    final cross = _matrix
+        .where((r) => r['note'] == 'CROSS-DEPARTMENT')
+        .map((r) => r['tutorId'])
+        .toSet()
+        .length;
+    final crossText = !_isAdmin
+        ? 'You teach a subject from outside your own school.'
+        : cross == 1
+            ? 'One person here teaches a subject from outside their own school.'
+            : '$cross people here teach a subject from outside their own school.';
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 36),
       children: [
         if (cross > 0)
           InfoBanner(
-            cross == 1
-                ? 'One person here teaches a subject from outside their own '
-                  'school. That is allowed, and often where the best help '
-                  'comes from.'
-                : '$cross people here teach a subject from outside their own '
-                  'school. That is allowed, and often where the best help '
-                  'comes from.',
+            '$crossText That is allowed, and often where the best help '
+            'comes from.',
             icon: Icons.alt_route,
             tint: AppColors.accent,
           ),
+        if (!_isAdmin && _me.isTutor) ...[
+          FilledButton.icon(
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Add a subject I teach'),
+            onPressed: _addSubject,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Tap a subject to change your level in it.',
+            style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+          ),
+        ],
         const SizedBox(height: 14),
 
         if (_matrix.isEmpty)
           const EmptyState(
             icon: Icons.menu_book_outlined,
             title: 'Nothing here yet',
-            hint: 'Become a mentor on your profile and pick a subject.',
+            hint: 'Become a tutor on the Me tab and pick a subject.',
           )
         else
           for (final r in _matrix) _skillRow(r),
@@ -174,7 +218,7 @@ class _SkillsPageState extends State<SkillsPage> {
   Widget _skillRow(dynamic r) {
     final isCross = r['note'] == 'CROSS-DEPARTMENT';
 
-    return Padding(
+    final row = Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Panel(
         padding: const EdgeInsets.all(14),
@@ -234,6 +278,14 @@ class _SkillsPageState extends State<SkillsPage> {
         ),
       ),
     );
+
+    // A tutor can change their own level; the admin only reads.
+    if (_isAdmin) return row;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _changeLevel(r),
+      child: row,
+    );
   }
 
   // ------------------------------------------------------------ slots
@@ -256,7 +308,7 @@ class _SkillsPageState extends State<SkillsPage> {
         child: EmptyState(
           icon: Icons.event_busy_outlined,
           title: 'You are not teaching yet',
-          hint: 'Become a mentor on your profile, then add the hours you '
+          hint: 'Become a tutor on the Me tab, then add the hours you '
               'are free.',
         ),
       );
@@ -270,11 +322,6 @@ class _SkillsPageState extends State<SkillsPage> {
           'you inside them.',
           icon: Icons.schedule,
         ),
-
-        if (_flash != null) ...[
-          const SizedBox(height: 12),
-          InfoBanner(_flash!, icon: Icons.check_circle_outline),
-        ],
 
         const SizedBox(height: 14),
         FilledButton.icon(
@@ -319,7 +366,9 @@ class _SkillsPageState extends State<SkillsPage> {
                             style: const TextStyle(fontSize: 13.5),
                           ),
                           Text(
-                            'slot ${s['slotNo']}  ·  ${s['state']}',
+                            s['state'] == 'free'
+                                ? 'No upcoming sessions'
+                                : 'Has an upcoming session',
                             style: const TextStyle(
                                 fontSize: 11, color: AppColors.textMuted),
                           ),
@@ -329,9 +378,7 @@ class _SkillsPageState extends State<SkillsPage> {
                     IconButton(
                       icon: const Icon(Icons.delete_outline, size: 19),
                       tooltip: 'Withdraw',
-                      onPressed: () => _removeSlot(
-                        (s['slotNo'] as num).toInt(),
-                      ),
+                      onPressed: () => _removeSlot(s),
                     ),
                   ],
                 ),
@@ -340,8 +387,8 @@ class _SkillsPageState extends State<SkillsPage> {
 
         const SizedBox(height: 10),
         const InfoBanner(
-          'An hour somebody has already booked cannot be removed — cancel '
-          'the session first.',
+          'Hours that have ever had a session booked stay on record, so '
+          'they cannot be removed. You can always add new hours.',
         ),
       ],
     );
@@ -480,32 +527,181 @@ class _SkillsPageState extends State<SkillsPage> {
 
     if (ok != true) return;
 
-    try {
-      await _api.post('/api/skills/slots/${_me.studentId}', body: {
+    await _act(
+      () => _api.post('/api/skills/slots/${_me.studentId}', body: {
         'dayOfWeek': day,
         'startTime': start,
         'endTime': end,
-      });
+      }),
+      'Free hours added. People can book you then.',
+    );
+  }
+
+  Future<void> _removeSlot(dynamic slot) async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Remove these hours?'),
+        content: Text(
+          '${slot['dayOfWeek']}  ${_hhmm(slot['startTime'])} – '
+          '${_hhmm(slot['endTime'])}\n\nNobody will be able to book you then.',
+          style: const TextStyle(fontSize: 13.5, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep them'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (sure != true) return;
+
+    await _act(
+      () => _api.delete('/api/skills/slots/${_me.studentId}/'
+          '${(slot['slotNo'] as num).toInt()}'),
+      'Free hours removed.',
+    );
+  }
+
+  /// Runs one change, reloads, then reports what happened.
+  Future<void> _act(Future<dynamic> Function() call, String ok) async {
+    try {
+      await call();
       if (!mounted) return;
-      setState(() => _flash = 'Added. People can book you then.');
       await _load();
+      if (!mounted) return;
+      setState(() => _flash = Flash.ok(ok));
     } catch (e) {
       if (!mounted) return;
-      setState(() => _flash = '$e');
+      setState(() => _flash = Flash.error(e));
     }
   }
 
-  Future<void> _removeSlot(int slotNo) async {
-    try {
-      final res = await _api
-          .delete('/api/skills/slots/${_me.studentId}/$slotNo') as Map;
-      if (!mounted) return;
-      setState(() => _flash = res['message']?.toString() ?? 'Done.');
-      await _load();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _flash = '$e');
+  static const _levels = [
+    ('BEGINNER', 'Beginner'),
+    ('PROFICIENT', 'Proficient'),
+    ('EXPERT', 'Expert'),
+  ];
+  static const _grades = ['S', 'A', 'B', 'C'];
+
+  /// Asks for a level and a grade, starting from [level] and [grade].
+  Future<(String, String)?> _askLevel(
+      String title, String level, String grade) {
+    return showDialog<(String, String)>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (builderContext, setLocal) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('How well do you know it?',
+                  style: TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, children: [
+                for (final (v, label) in _levels)
+                  ChoiceChip(
+                    label: Text(label, style: const TextStyle(fontSize: 12)),
+                    selected: level == v,
+                    onSelected: (_) => setLocal(() => level = v),
+                  ),
+              ]),
+              const SizedBox(height: 14),
+              const Text('Your grade in it',
+                  style: TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 6, children: [
+                for (final g in _grades)
+                  ChoiceChip(
+                    label: Text(g, style: const TextStyle(fontSize: 12)),
+                    selected: grade == g,
+                    onSelected: (_) => setLocal(() => grade = g),
+                  ),
+              ]),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, (level, grade)),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addSubject() async {
+    final taught =
+        _matrix.map((r) => (r['subjectId'] as num).toInt()).toSet();
+    final choices = _subjects
+        .where((s) => !taught.contains((s['subjectId'] as num).toInt()))
+        .toList();
+    if (choices.isEmpty) {
+      setState(() => _flash =
+          const Flash.ok('You already teach every subject on the list.'));
+      return;
     }
+
+    final subject = await showDialog<dynamic>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Which subject?'),
+        children: [
+          for (final s in choices)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, s),
+              child: Text('${s['code']}  ·  ${s['name']}',
+                  style: const TextStyle(fontSize: 13)),
+            ),
+        ],
+      ),
+    );
+    if (subject == null || !mounted) return;
+
+    final picked = await _askLevel(
+        '${subject['code']}  ·  ${subject['name']}', 'PROFICIENT', 'A');
+    if (picked == null) return;
+
+    await _act(
+      () => _api.post('/api/skills/${_me.studentId}', body: {
+        'subjectId': (subject['subjectId'] as num).toInt(),
+        'competency': picked.$1,
+        'grade': picked.$2,
+      }),
+      'Subject added. People can now book you for it.',
+    );
+  }
+
+  Future<void> _changeLevel(dynamic row) async {
+    final picked = await _askLevel(
+      '${row['subjectCode']}  ·  ${row['subjectName']}',
+      row['competencyLevel']?.toString() ?? 'PROFICIENT',
+      row['gradeProof']?.toString() ?? 'A',
+    );
+    if (picked == null) return;
+
+    await _act(
+      () => _api.put(
+          '/api/skills/${_me.studentId}/${(row['subjectId'] as num).toInt()}',
+          body: {'competency': picked.$1, 'grade': picked.$2}),
+      'Level updated.',
+    );
   }
 
   static String _hhmm(Object? t) {

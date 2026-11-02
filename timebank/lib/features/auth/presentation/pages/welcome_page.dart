@@ -91,7 +91,7 @@ class WelcomePage extends StatelessWidget {
                   _DoorCard(
                     icon: Icons.admin_panel_settings_outlined,
                     title: 'I am the administrator',
-                    body: 'Manage students and the subject list.',
+                    body: 'Manage students, sessions, credits and complaints.',
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const AdminAuthPage()),
                     ),

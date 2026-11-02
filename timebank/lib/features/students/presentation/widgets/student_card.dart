@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../shared/widgets/app_widgets.dart';
 import '../../domain/entities/student.dart';
 import '../bloc/student_bloc.dart';
 
@@ -57,7 +58,7 @@ class StudentCard extends StatelessWidget {
                             ),
                             if (dimmed) ...[
                               const SizedBox(width: 7),
-                              const Text('closed',
+                              const Text('deactivated',
                                   style: TextStyle(
                                       fontSize: 11,
                                       color: AppColors.textMuted)),
@@ -126,27 +127,35 @@ class StudentCard extends StatelessWidget {
               _DetailRow('School', student.school),
               _DetailRow('Age', '${student.age}'),
               _DetailRow('City', student.city.isEmpty ? '—' : student.city),
-              _DetailRow('Role', student.roleInSystem),
+              _DetailRow('Role', roleLabel(student.roleInSystem)),
               _DetailRow('Balance',
                   '${student.creditBalance.toStringAsFixed(1)} credits'),
-              _DetailRow('Status', student.accountStatus),
+              _DetailRow('Status', titleCase(student.accountStatus)),
               const SizedBox(height: 22),
-              if (student.isActive)
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.block, size: 17),
-                    label: const Text('Close this account'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.negative,
-                      side: const BorderSide(color: AppColors.negative),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(sheetContext);
-                      _confirmClose(context, bloc);
-                    },
-                  ),
-                ),
+              SizedBox(
+                width: double.infinity,
+                child: student.isActive
+                    ? OutlinedButton.icon(
+                        icon: const Icon(Icons.block, size: 17),
+                        label: const Text('Deactivate account'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.negative,
+                          side: const BorderSide(color: AppColors.negative),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          _confirmClose(context, bloc);
+                        },
+                      )
+                    : FilledButton.icon(
+                        icon: const Icon(Icons.restart_alt, size: 17),
+                        label: const Text('Reactivate account'),
+                        onPressed: () {
+                          Navigator.pop(sheetContext);
+                          bloc.add(StudentReactivated(student.studentId));
+                        },
+                      ),
+              ),
             ],
           ),
         ),
@@ -184,7 +193,7 @@ class StudentCard extends StatelessWidget {
               bloc.add(StudentDeactivated(student.studentId));
               Navigator.pop(dialogContext);
             },
-            child: const Text('Close account'),
+            child: const Text('Deactivate'),
           ),
         ],
       ),
@@ -231,9 +240,9 @@ class _RoleBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (role) {
-      'BOTH' => ('TUTOR + TUTEE', AppColors.accent),
+      'BOTH' => ('TUTOR + LEARNER', AppColors.accent),
       'TUTOR ONLY' => ('TUTOR', AppColors.positive),
-      'TUTEE ONLY' => ('TUTEE', AppColors.info),
+      'TUTEE ONLY' => ('LEARNER', AppColors.info),
       _ => ('NOT STARTED', AppColors.textMuted),
     };
 

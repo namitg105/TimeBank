@@ -109,15 +109,17 @@ class _StudentAuthPageState extends State<StudentAuthPage> {
                   ),
                   const SizedBox(height: 20),
 
+                  if (_signingUp) ..._signUpFields() else ..._signInFields(),
+
+                  const SizedBox(height: 22),
+
+                  // Right above the button: the sign-up form is long, and
+                  // a message at the top would be scrolled out of sight.
                   if (_error != null) ...[
                     InfoBanner(_error!,
                         icon: Icons.error_outline, tint: AppColors.negative),
                     const SizedBox(height: 14),
                   ],
-
-                  if (_signingUp) ..._signUpFields() else ..._signInFields(),
-
-                  const SizedBox(height: 22),
                   SizedBox(
                     height: 46,
                     child: FilledButton(
@@ -159,7 +161,7 @@ class _StudentAuthPageState extends State<StudentAuthPage> {
         ),
         const SizedBox(height: 10),
         const Text(
-          'Try 25BCE1001 (Aarav, a tutor), 25BCE1002 (Diya, a tutee) '
+          'Try 25BCE1001 (Aarav, a tutor), 25BCE1002 (Diya, a learner) '
           'or 25BCE1003 (Kabir, who is both).',
           style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
         ),
@@ -189,7 +191,7 @@ class _StudentAuthPageState extends State<StudentAuthPage> {
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = _clean('$e'));
+      setState(() => _error = '$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -381,15 +383,11 @@ class _StudentAuthPageState extends State<StudentAuthPage> {
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = _clean('$e'));
+      setState(() => _error = '$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   /// Strips the exception wrapper so the user sees the server's sentence.
-  static String _clean(String raw) {
-    final i = raw.indexOf(': ');
-    return i > 0 && i < 40 ? raw.substring(i + 2) : raw;
-  }
 }

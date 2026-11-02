@@ -10,15 +10,23 @@ class ServerException implements Exception {
 
   const ServerException(this.message, {this.statusCode = 0, this.oracleCode = 0});
 
-  /// True when the API said this was a broken business rule rather than a
-  /// fault -- the controller returns 409 CONFLICT for those.
-  bool get isBusinessRule => statusCode == 409;
+  /// True when the request was refused for something the user can fix:
+  /// a broken rule (409), a bad or missing value (400), something that
+  /// does not exist (404) or a wrong sign-in (401, 403). Only 5xx is a
+  /// fault on the server's side.
+  bool get isBusinessRule => statusCode >= 400 && statusCode < 500;
 
+  /// Just the sentence, so `'$e'` on a screen never shows a class name.
   @override
-  String toString() => 'ServerException($statusCode): $message';
+  String toString() => message;
 }
 
 class NetworkException implements Exception {
   final String message;
-  const NetworkException([this.message = 'No connection to the server.']);
+  const NetworkException([
+    this.message = 'Cannot reach the TimeBank server. Check that it is running, then try again.',
+  ]);
+
+  @override
+  String toString() => message;
 }

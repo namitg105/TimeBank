@@ -30,6 +30,10 @@ class Booking extends Equatable {
   /// what proves the tutee actually turned up.
   final bool checkedIn;
 
+  /// The check-in secret. The API supplies this only to the learner in
+  /// their own session list; tutors and administrators receive null.
+  final String? sessionCode;
+
   /// Who is on each side, so a screen can offer a student only the
   /// actions that belong to their side of the session.
   final int tutorId;
@@ -49,6 +53,7 @@ class Booking extends Equatable {
     required this.creditsHeld,
     required this.confirmations,
     required this.checkedIn,
+    this.sessionCode,
     required this.tutorId,
     required this.tuteeId,
   });
@@ -82,10 +87,11 @@ class Booking extends Equatable {
     if (status == 'DISPUTED') return 'Waiting on an admin';
     if (!checkedIn) return 'Tutor must enter the session code';
     if (!tutorConfirmed) return 'Waiting for the tutor to confirm';
-    if (!tuteeConfirmed) return 'Waiting for the tutee to confirm';
+    if (!tuteeConfirmed) return 'Waiting for the learner to confirm';
     return 'Ready to complete';
   }
 
   @override
-  List<Object?> get props => [bookingId, status, confirmations, checkedIn];
+  List<Object?> get props =>
+      [bookingId, status, confirmations, checkedIn, sessionCode];
 }
