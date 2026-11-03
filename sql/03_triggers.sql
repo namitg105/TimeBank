@@ -212,6 +212,12 @@ BEGIN
     RAISE_APPLICATION_ERROR (-20008,
       'A review can only be left once the session has finished.');
   END IF;
+EXCEPTION
+  --  No such session. The foreign key would refuse it a moment later,
+  --  but this trigger reads BOOKING first, so without this the caller
+  --  gets a raw NO_DATA_FOUND instead of a sentence.
+  WHEN NO_DATA_FOUND THEN
+    RAISE_APPLICATION_ERROR (-20024, 'That session does not exist.');
 END;
 /
 

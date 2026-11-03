@@ -182,6 +182,55 @@ public class SkillsDao {
     //  Q5 — capacity against demand  (AGGREGATE)
     // -----------------------------------------------------------------
 
+    /**
+     * ANALYTIC (WINDOW) — who is the strongest tutor for each subject?
+     *
+     * <p>RANK restarts for every subject, so each tutor sees their place
+     * among the people teaching that same subject. FIRST_VALUE names the
+     * leader on every row, which a GROUP BY could not do without a
+     * second query: it would have collapsed the rows it needed.
+     *
+     * <p>The ORDER BY inside the window sorts by competency first, which
+     * is text — so a CASE turns EXPERT, PROFICIENT and BEGINNER into 1,
+     * 2 and 3 rather than sorting them alphabetically.
+     */
+    public List<Map<String, Object>> tutorRanking() throws SQLException {
+        String sql = """
+                SELECT sub.subject_code,
+                       s.first_name || ' ' || s.last_name           AS tutor_name,
+                       ts.competency_level,
+                       ts.grade_proof,
+                       RANK () OVER (PARTITION BY sub.subject_id
+                                     ORDER BY CASE ts.competency_level
+                                                WHEN 'EXPERT'     THEN 1
+                                                WHEN 'PROFICIENT' THEN 2
+                                                ELSE                   3 END,
+                                              ts.grade_proof)       AS rank_in_subject,
+                       COUNT (*) OVER (PARTITION BY sub.subject_id) AS tutors_in_subject,
+                       FIRST_VALUE (s.first_name) OVER (
+                            PARTITION BY sub.subject_id
+                            ORDER BY CASE ts.competency_level
+                                       WHEN 'EXPERT'     THEN 1
+                                       WHEN 'PROFICIENT' THEN 2
+                                       ELSE                   3 END)
+                                                                    AS top_tutor
+                FROM   tutor_skill ts
+                       JOIN subject sub ON sub.subject_id = ts.subject_id
+                       JOIN student s   ON s.student_id   = ts.tutor_id
+                ORDER  BY sub.subject_code, rank_in_subject""";
+
+        long t0 = SqlLog.q("MEMBER 2  .  Tutor ranking inside each subject", sql);
+
+        try (Connection c = Database.get();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            List<Map<String, Object>> out = rowsOf(rs);
+            SqlLog.rows(out.size(), t0);
+            return out;
+        }
+    }
+
     public List<Map<String, Object>> capacity() throws SQLException {
         String sql = """
                 SELECT sub.subject_code, sub.subject_name,

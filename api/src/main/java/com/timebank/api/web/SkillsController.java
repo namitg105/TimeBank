@@ -44,6 +44,12 @@ public class SkillsController {
         return skills.subjectsWithNoTutor();
     }
 
+    /** GET /api/skills/ranking — each tutor's place within their subject. */
+    @GetMapping("/ranking")
+    public List<Map<String, Object>> ranking() throws SQLException {
+        return skills.tutorRanking();
+    }
+
     /** GET /api/skills/capacity — tutors per subject. */
     @GetMapping("/capacity")
     public List<Map<String, Object>> capacity() throws SQLException {

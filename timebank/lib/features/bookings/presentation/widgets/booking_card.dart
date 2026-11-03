@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../shared/widgets/app_widgets.dart';
 import '../../../auth/session.dart';
 import '../../domain/entities/booking.dart';
@@ -209,6 +211,14 @@ class BookingCard extends StatelessWidget {
           if (booking.isUpcoming) ...[
             const SizedBox(height: 12),
             _Actions(booking: booking),
+          ],
+
+          // A finished session is the only one worth reviewing, and
+          // trg_feedback_valid refuses any other — so the button only
+          // appears here.
+          if (booking.isFinished) ...[
+            const SizedBox(height: 12),
+            _ReviewRow(booking: booking),
           ],
         ],
       ),
@@ -534,4 +544,192 @@ class _CancelButton extends StatelessWidget {
         onPressed: onPressed,
         child: Text(label),
       );
+}
+
+// ---------------------------------------------------------------------
+
+/// Leaving and taking back a review, on a finished session.
+///
+/// MEMBER 5 — FEEDBACK, a weak entity owned by BOOKING.
+///
+/// Which side you review AS is not a choice: it follows from which side
+/// of the session you were on. The administrator is asked, because they
+/// were on neither.
+class _ReviewRow extends StatefulWidget {
+  final Booking booking;
+  const _ReviewRow({required this.booking});
+
+  @override
+  State<_ReviewRow> createState() => _ReviewRowState();
+}
+
+class _ReviewRowState extends State<_ReviewRow> {
+  final ApiClient _api = sl<ApiClient>();
+
+  List<String> _reviewers = [];
+  bool _busy = false;
+  Flash? _flash;
+
+  Booking get _b => widget.booking;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await _api.get('/api/feedback/${_b.bookingId}') as List;
+      if (!mounted) return;
+      setState(() => _reviewers = data.map((r) => r.toString()).toList());
+    } catch (_) {
+      // Not worth a message: the buttons simply stay as they were.
+    }
+  }
+
+  /// Which side the signed-in person was on, or null for the admin.
+  String? get _myRole {
+    final me = currentSession.value;
+    if (me == null || me.isAdmin) return null;
+    if (me.studentId == _b.tutorId) return 'TUTOR';
+    if (me.studentId == _b.tuteeId) return 'TUTEE';
+    return null;
+  }
+
+  Future<void> _run(Future<dynamic> Function() call, String ok) async {
+    setState(() {
+      _busy = true;
+      _flash = null;
+    });
+    try {
+      await call();
+      if (!mounted) return;
+      await _load();
+      if (!mounted) return;
+      setState(() => _flash = Flash.ok(ok));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _flash = Flash.error(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final me = currentSession.value;
+    final isAdmin = me == null || me.isAdmin;
+    final role = _myRole;
+    final mine = role != null && _reviewers.contains(role);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _reviewers.isEmpty
+                    ? 'No reviews yet'
+                    : _reviewers.length == 2
+                        ? 'Both sides have reviewed this session'
+                        : 'One side has reviewed this session',
+                style: const TextStyle(
+                    fontSize: 11.5, color: AppColors.textMuted),
+              ),
+            ),
+            if (!isAdmin && role != null)
+              mine
+                  ? OutlinedButton.icon(
+                      icon: const Icon(Icons.delete_outline, size: 15),
+                      label: const Text('Remove my review',
+                          style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.negative),
+                      onPressed: _busy ? null : _remove,
+                    )
+                  : OutlinedButton.icon(
+                      icon: const Icon(Icons.star_outline, size: 15),
+                      label: const Text('Leave a review',
+                          style: TextStyle(fontSize: 12)),
+                      onPressed: _busy ? null : () => _leave(role),
+                    ),
+          ],
+        ),
+        if (_flash != null) ...[
+          const SizedBox(height: 8),
+          ResultBanner(_flash!),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _remove() => _run(
+        () => _api.delete('/api/feedback/${_b.bookingId}/$_myRole'),
+        'Review removed.',
+      );
+
+  Future<void> _leave(String role) async {
+    double rating = 4.5;
+    final comment = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (builderContext, setLocal) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(role == 'TUTEE'
+              ? 'How was ${_b.tutorName}?'
+              : 'How was ${_b.tuteeName}?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Rating  ${rating.toStringAsFixed(1)}',
+                  style: const TextStyle(fontSize: 13)),
+              Slider(
+                value: rating,
+                min: 1,
+                max: 5,
+                divisions: 8,
+                label: rating.toStringAsFixed(1),
+                onChanged: (v) => setLocal(() => rating = v),
+              ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: comment,
+                maxLines: 3,
+                maxLength: 400,
+                style: const TextStyle(fontSize: 13),
+                decoration: const InputDecoration(
+                  labelText: 'What went well, or what did not',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Save review'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final text = comment.text.trim();
+    comment.dispose();
+    if (ok != true || !mounted) return;
+
+    await _run(
+      () => _api.post('/api/feedback/${_b.bookingId}',
+          body: {'role': role, 'rating': rating, 'comments': text}),
+      'Review saved.',
+    );
+  }
 }

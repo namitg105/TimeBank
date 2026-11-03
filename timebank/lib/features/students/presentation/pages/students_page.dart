@@ -4,6 +4,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_widgets.dart';
+import '../../../../shared/widgets/rows_view.dart';
 import '../../domain/entities/student.dart';
 import '../bloc/student_bloc.dart';
 import '../widgets/student_card.dart';
@@ -180,33 +181,13 @@ class _StudentsPageState extends State<StudentsPage> {
 
   /// One of the four views: its question, then the rows it returned.
   Widget _viewBody() {
-    final note = _views.firstWhere((v) => v.$1 == _view).$3;
-
     return Expanded(
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-        children: [
-          InfoBanner(note, icon: Icons.help_outline),
-          const SizedBox(height: 12),
-          if (_loadingView)
-            const LoadingView(label: 'Asking Oracle')
-          else if (_viewError != null)
-            ErrorView(message: _viewError!, onRetry: () => _openView(_view))
-          else if (_rows.isEmpty)
-            const EmptyState(
-              icon: Icons.inbox_outlined,
-              title: 'No rows',
-              hint: 'Nothing matched this question.',
-            )
-          else ...[
-            Text(
-              plural(_rows.length, 'row'),
-              style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
-            ),
-            const SizedBox(height: 8),
-            for (final row in _rows) _RowCard(row: row as Map<String, dynamic>),
-          ],
-        ],
+      child: RowsView(
+        note: _views.firstWhere((v) => v.$1 == _view).$3,
+        loading: _loadingView,
+        error: _viewError,
+        rows: _rows,
+        onRetry: () => _openView(_view),
       ),
     );
   }
@@ -246,65 +227,6 @@ class _StudentsPageState extends State<StudentsPage> {
 }
 
 // ---------------------------------------------------------------------
-
-/// One row of a view, as label-and-value lines.
-///
-/// A table would need horizontal scrolling on a phone and these views
-/// have up to eight columns, so each row is drawn as its own small card
-/// with the first column as the heading.
-class _RowCard extends StatelessWidget {
-  final Map<String, dynamic> row;
-  const _RowCard({required this.row});
-
-  @override
-  Widget build(BuildContext context) {
-    final entries = row.entries.toList();
-    final heading = entries.length > 1 ? entries[1] : entries.first;
-    final rest = entries.where((e) => e.key != heading.key).toList();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 9),
-      child: Panel(
-        padding: const EdgeInsets.all(13),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${heading.value}',
-              style: const TextStyle(
-                  fontSize: 13.5, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 7),
-            Wrap(
-              spacing: 18,
-              runSpacing: 6,
-              children: [
-                for (final e in rest)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        e.key.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 9,
-                          letterSpacing: 0.7,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text('${e.value}',
-                          style: const TextStyle(fontSize: 12.5)),
-                    ],
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _SearchField extends StatelessWidget {
   final TextEditingController controller;

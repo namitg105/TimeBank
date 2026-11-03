@@ -4,6 +4,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_widgets.dart';
+import '../../../../shared/widgets/rows_view.dart';
 import '../../../auth/session.dart';
 
 /// Subjects, who can teach them, and when.
@@ -32,6 +33,53 @@ class _SkillsPageState extends State<SkillsPage> {
   String? _error;
   Flash? _flash;
   String _lastRole = '';
+
+  /// The two views that answer a question about the whole catalogue
+  /// rather than about one person. Each is a different shape of query,
+  /// and each prints its SQL in the API window.
+  static const _reports = {
+    3: (
+      'capacity',
+      'How many tutors can teach each subject, and how many of them are '
+          'experts? One pass over the catalogue with GROUP BY; the LEFT '
+          'JOIN keeps subjects nobody teaches, which an inner join would '
+          'drop — and those are the ones worth seeing.'
+    ),
+    4: (
+      'ranking',
+      'Each tutor ranked against the others teaching that same subject. '
+          'RANK restarts for every subject, and FIRST_VALUE names the '
+          'leader on every row — a window keeps all the rows, which '
+          'GROUP BY could not.'
+    ),
+  };
+
+  List<dynamic> _reportRows = [];
+  bool _loadingReport = false;
+  String? _reportError;
+
+  Future<void> _loadReport(int tab) async {
+    final key = _reports[tab]!.$1;
+    setState(() {
+      _loadingReport = true;
+      _reportError = null;
+      _reportRows = [];
+    });
+    try {
+      final data = await _api.get('/api/skills/$key') as List;
+      if (!mounted) return;
+      setState(() {
+        _reportRows = data;
+        _loadingReport = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _reportError = '$e';
+        _loadingReport = false;
+      });
+    }
+  }
 
   List<dynamic> _matrix = [];
   List<dynamic> _slots = [];
@@ -131,21 +179,34 @@ class _SkillsPageState extends State<SkillsPage> {
   Widget _body() {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: SegmentedButton<int>(
-            segments: [
-              const ButtonSegment(value: 0, label: Text('Subjects')),
-              ButtonSegment(
-                  value: 1, label: Text(_isAdmin ? 'Hours' : 'My hours')),
-              const ButtonSegment(value: 2, label: Text('Browse')),
+        SizedBox(
+          height: 44,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            children: [
+              for (final (i, label) in [
+                (0, 'Subjects'),
+                (1, _isAdmin ? 'Hours' : 'My hours'),
+                (2, 'Browse'),
+                (3, 'Capacity'),
+                (4, 'Ranking'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(label, style: const TextStyle(fontSize: 12)),
+                    selected: _tab == i,
+                    onSelected: (_) {
+                      setState(() {
+                        _tab = i;
+                        _flash = null;
+                      });
+                      if (_reports.containsKey(i)) _loadReport(i);
+                    },
+                  ),
+                ),
             ],
-            selected: {_tab},
-            showSelectedIcon: false,
-            onSelectionChanged: (s) => setState(() {
-              _tab = s.first;
-              _flash = null;
-            }),
           ),
         ),
         if (_flash != null)
@@ -157,7 +218,14 @@ class _SkillsPageState extends State<SkillsPage> {
           child: switch (_tab) {
             0 => _matrixTab(),
             1 => _slotsTab(),
-            _ => _catalogueTab(),
+            2 => _catalogueTab(),
+            _ => RowsView(
+                  note: _reports[_tab]!.$2,
+                  loading: _loadingReport,
+                  error: _reportError,
+                  rows: _reportRows,
+                  onRetry: () => _loadReport(_tab),
+                ),
           },
         ),
       ],

@@ -3,6 +3,7 @@ import 'package:timebank/core/di/injection.dart';
 import 'package:timebank/core/network/api_client.dart';
 import 'package:timebank/core/theme/app_colors.dart';
 import 'package:timebank/shared/widgets/app_widgets.dart';
+import 'package:timebank/shared/widgets/rows_view.dart';
 
 
 /// The moderator's area.
@@ -42,6 +43,75 @@ class _AdminPageState extends State<AdminPage> {
 
   int? _adminId;
   String _filter = 'ALL';
+
+  /// What has been written about sessions, four ways. Complaints are
+  /// what an administrator settles; these are what they read first, and
+  /// each is a different shape of query.
+  static const _views = [
+    (null, 'Complaints', ''),
+    (
+      'sessions',
+      'Both sides of every session',
+      'Did the two sides agree? Both halves of the review come from the '
+          'SAME table, so FEEDBACK is joined to itself and the copies are '
+          'told apart by reviewer_role — only possible because the role is '
+          'part of the key. Both joins are OUTER, because many sessions '
+          'get only one review.'
+    ),
+    (
+      'top-rated',
+      'Top rated',
+      'Tutors rated above the campus average. Three levels deep: average '
+          'each tutor, average those averages, keep the ones above it. It '
+          'is the average OF averages, so a tutor with 20 sessions cannot '
+          'drown out one with 2.'
+    ),
+    (
+      'by-subject',
+      'By subject',
+      'How each subject is rated. STDDEV matters more than it looks: a '
+          '4.0 from 4,4,4 is a very different tutor from a 4.0 from 5,5,2. '
+          'ROLLUP adds the all-subjects row in the same pass.'
+    ),
+    (
+      'trend',
+      'Trend',
+      'Is each tutor improving or slipping? LAG gives the rating before, '
+          'and a moving average smooths the last three. A GROUP BY would '
+          'collapse the history into one number and lose the trend — which '
+          'is the whole question.'
+    ),
+  ];
+
+  String? _view;
+  List<dynamic> _viewRows = [];
+  bool _loadingView = false;
+  String? _viewError;
+
+  Future<void> _openView(String? key) async {
+    setState(() {
+      _view = key;
+      _viewRows = [];
+      _viewError = null;
+      _loadingView = key != null;
+    });
+    if (key == null) return;
+
+    try {
+      final data = await _api.get('/api/feedback/$key') as List;
+      if (!mounted) return;
+      setState(() {
+        _viewRows = data;
+        _loadingView = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _viewError = '$e';
+        _loadingView = false;
+      });
+    }
+  }
   bool _loading = true;
   String? _error;
 
@@ -129,11 +199,43 @@ class _AdminPageState extends State<AdminPage> {
           ),
         ],
       ),
-      body: _loading
-          ? const LoadingView(label: 'Loading')
-          : _error != null
-              ? ErrorView(message: _error!, onRetry: _load)
-              : _body(),
+      body: Column(
+        children: [
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              children: [
+                for (final (key, label, _) in _views)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(label, style: const TextStyle(fontSize: 12)),
+                      selected: _view == key,
+                      onSelected: (_) => _openView(key),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _view != null
+                ? RowsView(
+                    note: _views.firstWhere((v) => v.$1 == _view).$3,
+                    loading: _loadingView,
+                    error: _viewError,
+                    rows: _viewRows,
+                    onRetry: () => _openView(_view),
+                  )
+                : _loading
+                    ? const LoadingView(label: 'Loading')
+                    : _error != null
+                        ? ErrorView(message: _error!, onRetry: _load)
+                        : _body(),
+          ),
+        ],
+      ),
     );
   }
 
