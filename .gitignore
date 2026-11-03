@@ -38,3 +38,6 @@ _timebank_payload.zip
 demo_output.txt
 sql/demo_output.txt
 out_member1.txt
+
+# ---- editor / tooling, local only ----
+.claude/

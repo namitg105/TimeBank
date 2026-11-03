@@ -6,6 +6,11 @@ One hour of tutoring given earns one credit. One hour received costs one
 credit. No money changes hands, and the ledger proves the economy stays
 closed.
 
+> **On the team? Start with [TEAMMATES.md](TEAMMATES.md).** It covers
+> taking a pull and running the whole system from Command Prompt, with
+> the exact commands for the Oracle XE 11g setup we actually use. The
+> section below is the generic version, for Oracle Free in Docker.
+
 ---
 
 ## Repository layout
