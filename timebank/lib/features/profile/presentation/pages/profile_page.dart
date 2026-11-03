@@ -38,23 +38,30 @@ class _ProfilePageState extends State<ProfilePage> {
     _load();
   }
 
-  /// Subjects for the picker, my saved phone numbers, and my roles as the
-  /// database has them now (a booking may have changed them).
+  /// My phone numbers, and my roles as the database has them now (a
+  /// booking may have changed them).
+  ///
+  /// The subject catalogue is deliberately NOT fetched here. It is only
+  /// needed if you tap Tutor, and the Subjects tab loads it anyway — so
+  /// fetching it on every visit just put the same query in the API
+  /// window twice for no reason. [_pickSubject] fetches it on demand.
   Future<void> _load() async {
     await refreshMyRole();
     try {
-      final subjects = await _api.get('/api/skills/subjects') as List;
       final phones =
           await _api.get('/api/students/${_me.studentId}/phones') as List;
       if (!mounted) return;
-      setState(() {
-        _subjects = subjects;
-        _phones = phones.map((p) => p.toString()).toList();
-      });
+      setState(() => _phones = phones.map((p) => p.toString()).toList());
     } catch (e) {
       if (!mounted) return;
       setState(() => _flash = Flash.error(e));
     }
+  }
+
+  Future<void> _loadSubjects() async {
+    final subjects = await _api.get('/api/skills/subjects') as List;
+    if (!mounted) return;
+    setState(() => _subjects = subjects);
   }
 
   /// Runs one action, then shows what happened and reloads.
@@ -327,7 +334,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<int?> _pickSubject(String title, String note) async {
     if (_subjects.isEmpty) {
-      await _load();
+      try {
+        await _loadSubjects();
+      } catch (e) {
+        if (!mounted) return null;
+        setState(() => _flash = Flash.error(e));
+        return null;
+      }
     }
     if (!mounted) return null;
     if (_subjects.isEmpty) {

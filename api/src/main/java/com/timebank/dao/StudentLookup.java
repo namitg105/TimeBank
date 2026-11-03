@@ -55,7 +55,7 @@ public final class StudentLookup {
                 FROM   student
                 WHERE  UPPER(reg_no) = UPPER(?)""";
 
-        long t0 = SqlLog.q("Look up a student by registration number",
+        long t0 = SqlLog.q("MEMBER 1  .  Find a student by registration number",
                 sql, s);
 
         try (Connection c = Database.get();

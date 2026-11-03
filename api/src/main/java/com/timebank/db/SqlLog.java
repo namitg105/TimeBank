@@ -45,7 +45,58 @@ public final class SqlLog {
     /** Set false to silence the trace (for example when load testing). */
     public static boolean enabled = true;
 
+    /**
+     * Where this thread's output is collected while a request is running.
+     *
+     * <p>WHY BUFFER AT ALL
+     * One screen in the app fires half a dozen requests at once, each on
+     * its own thread. Printing as they go interleaved the blocks: a row
+     * count would land under somebody else's query and the window was
+     * unreadable. Each request now collects its lines here and prints
+     * them in a single call when it finishes, so a block always holds
+     * one request's work, in order.
+     */
+    private static final ThreadLocal<StringBuilder> BUFFER = new ThreadLocal<>();
+
     private SqlLog() { }
+
+    /** Starts collecting this thread's output instead of printing it. */
+    public static void beginCapture() {
+        BUFFER.set(new StringBuilder());
+    }
+
+    /** Stops collecting and hands back everything since {@link #beginCapture}. */
+    public static String endCapture() {
+        StringBuilder held = BUFFER.get();
+        BUFFER.remove();
+        return held == null ? "" : held.toString();
+    }
+
+    /** Buffers while a request is running; prints straight out otherwise. */
+    private static void emit(String text) {
+        StringBuilder held = BUFFER.get();
+        if (held != null) {
+            held.append(text);
+        } else {
+            System.out.print(text);
+        }
+    }
+
+    /**
+     * SELECT, INSERT, UPDATE, DELETE or PL/SQL, read off the statement.
+     *
+     * <p>In the header so the examiner can see at a glance which kind of
+     * statement a click produced, without reading the SQL first.
+     */
+    private static String kindOf(String sql) {
+        String first = sql.strip().toUpperCase();
+        if (first.startsWith("SELECT") || first.startsWith("WITH")) return "SELECT";
+        if (first.startsWith("INSERT")) return "INSERT";
+        if (first.startsWith("UPDATE")) return "UPDATE";
+        if (first.startsWith("DELETE")) return "DELETE";
+        if (first.startsWith("BEGIN"))  return "PL/SQL";
+        return "SQL";
+    }
 
     /**
      * Announces a statement about to run.
@@ -64,7 +115,8 @@ public final class SqlLog {
         StringBuilder out = new StringBuilder();
         out.append('\n').append(RULE).append('\n');
         out.append("  ").append(LocalTime.now().format(CLOCK))
-           .append("   ").append(label).append('\n');
+           .append("   [").append(kindOf(sql)).append("]   ")
+           .append(label).append('\n');
         out.append(RULE).append('\n');
 
         for (String line : sql.strip().split("\n")) {
@@ -79,7 +131,7 @@ public final class SqlLog {
             }
         }
 
-        System.out.print(out);
+        emit(out.toString());
         return System.nanoTime();
     }
 
@@ -116,13 +168,13 @@ public final class SqlLog {
         for (String line : sql.strip().split("\n")) {
             out.append("      ").append(line).append('\n');
         }
-        System.out.print(out);
+        emit(out.toString());
     }
 
     /** A one-line aside, used when a read-back could not be done. */
     public static void note(String text) {
         if (enabled) {
-            System.out.println("    " + text);
+            emit("    " + text + System.lineSeparator());
         }
     }
 
@@ -146,8 +198,7 @@ public final class SqlLog {
             return;
         }
         double ms = (System.nanoTime() - startNanos) / 1_000_000.0;
-        System.out.printf("%n  ->  %s in %.1f ms%n%s%n",
-                outcome, ms, RULE);
+        emit(String.format("%n  ->  %s in %.1f ms%n%s%n", outcome, ms, RULE));
     }
 
     /**
@@ -189,7 +240,7 @@ public final class SqlLog {
 
         if (rows.isEmpty()) {
             out.append("    (no rows)\n");
-            System.out.print(out);
+            emit(out.toString());
             return;
         }
 
@@ -219,7 +270,7 @@ public final class SqlLog {
             out.append('\n');
         }
 
-        System.out.print(out);
+        emit(out.toString());
     }
 
     private static String pad(String s, int w) {

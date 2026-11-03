@@ -128,8 +128,7 @@ public class BookingDao {
      * completed, so a tutor cannot claim credits for a no-show.
      */
     public void checkIn(int bookingId, String sessionCode) throws SQLException {
-        callOneArg("BookingDao.checkIn  (the session code proves the tutee"
-                 + " turned up -- without it the confirm trigger refuses)",
+        callOneArg("MEMBER 3  .  Check in with the session code",
                 "BEGIN pkg_timebank.check_in(?, ?); END;", bookingId, sessionCode);
     }
 
@@ -146,9 +145,7 @@ public class BookingDao {
      * debit. Getting that wrong would charge the tutee twice.
      */
     public void confirm(int bookingId, String role) throws SQLException {
-        callOneArg("BookingDao.confirm  (credits move only when BOTH sides have"
-                 + " confirmed; completion writes ONE positive TRANSFER, because"
-                 + " the tutee was already debited by the HOLD at booking time)",
+        callOneArg("MEMBER 3  .  Confirm the session happened",
                 "BEGIN pkg_timebank.confirm_session(?, ?); END;", bookingId, role);
     }
 
@@ -200,8 +197,7 @@ public class BookingDao {
 
     /** Cancels. Who cancels, and how late, decides where the escrow goes. */
     public void cancel(int bookingId, String byRole) throws SQLException {
-        callOneArg("BookingDao.cancel  (who cancels, and how late, decides"
-                 + " where the escrow goes)",
+        callOneArg("MEMBER 3  .  Cancel a session",
                 "BEGIN pkg_timebank.cancel_booking(?, ?); END;", bookingId, byRole);
     }
 
@@ -258,9 +254,7 @@ public class BookingDao {
      * both sides of the platform.
      */
     public List<Booking> forStudent(int studentId) throws SQLException {
-        return query("BookingDao.forStudent  (the SAME id is bound twice, once"
-                   + " per role -- that is the overlapping specialization"
-                   + " surfacing in the application layer)",
+        return query("MEMBER 3  .  My sessions, as tutor and as learner",
                 // The code is deliberately selected only when this student is
                 // the learner. A tutor sees the same booking, but never the
                 // secret they must ask the learner to provide at check-in.
@@ -281,7 +275,7 @@ public class BookingDao {
 
     /** Filter by status, e.g. CONFIRMED or COMPLETED. */
     public List<Booking> byStatus(String status) throws SQLException {
-        return query("BookingDao.byStatus  (six-table join)",
+        return query("MEMBER 3  .  Sessions with one status",
                 BASE_SELECT + """
                 WHERE  b.status = ?
                 ORDER  BY b.sched_date DESC""",
@@ -291,8 +285,7 @@ public class BookingDao {
 
     /** Everything, newest first. */
     public List<Booking> listAll() throws SQLException {
-        return query("BookingDao.listAll  (Member 3 Q2: the six-table join that"
-                   + " rebuilds each session from its foreign keys)",
+        return query("MEMBER 3  .  Every session",
                 BASE_SELECT + " ORDER BY b.booking_id", ps -> { });
     }
 
