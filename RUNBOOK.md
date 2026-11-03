@@ -6,11 +6,12 @@ Four stages, in this order. Each one depends on the one before it.
 Oracle XE :1521   →   schema built   →   Spring Boot API :8081   →   Flutter app
 ```
 
-**The shortcut:** right-click `START_DEMO.bat` → *Run as administrator*. It
-does stages 1, 3 and 4 and opens the three windows for you. Use the
-manual steps below when something goes wrong, or when the schema needs
-rebuilding (stage 2, which the batch file deliberately does **not** do —
-it would wipe your data every time).
+Stage 2 is the one to think about: it rebuilds the schema from the
+scripts, so it wipes your data. Run it the first time, and after any
+pull that changed something under `sql/` — not every day.
+
+New to the project? [TEAMMATES.md](TEAMMATES.md) covers the same ground
+with the exact Command Prompt lines, including the first-time install.
 
 ---
 

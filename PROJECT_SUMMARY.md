@@ -82,7 +82,7 @@ TimeBank/
 ├── RUNBOOK.md                cold-start guide, step by step
 ├── DBMS_GUIDE.md             study + viva guide (normalization, EER, indexing, TCL…)
 ├── SETUP_XE11G.md            installing Oracle XE 11g and creating the user
-├── START_DEMO.bat            opens Oracle / API / SQL*Plus / Flutter windows (run as admin)
+├── TEAMMATES.md              how to pull and run it, from Command Prompt
 ├── out_member1.txt           spooled output of Member 1's file
 ├── main.dart.flutter-default.bak
 ├── console-app/              early Java console prototype (not part of the build)
@@ -457,7 +457,8 @@ sqlplus timebank/timebank@localhost:1521/XE
 @check.sql
 ```
 
-**Shortcut:** right-click `START_DEMO.bat` → Run as administrator.
+Every command above is written out for Command Prompt in
+`TEAMMATES.md`, along with what to do after a pull.
 
 ---
 
