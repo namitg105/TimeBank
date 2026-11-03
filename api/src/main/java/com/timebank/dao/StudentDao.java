@@ -9,6 +9,7 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Member 1's module: onboarding and profiles.
@@ -435,6 +436,161 @@ public class StudentDao {
                 SqlLog.called("balance = " + bal, t0);
                 return bal;
             }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    //  The four views on the directory
+    //
+    //  Each one answers a question an administrator actually asks, and
+    //  each is a different kind of SELECT. The SQL is the same as the
+    //  matching query in sql/onboarding.sql, so what the screen shows is
+    //  what the written record holds.
+    // -----------------------------------------------------------------
+
+    /**
+     * NESTED SUBQUERY — who is below the campus average balance?
+     *
+     * <p>The inner query averages every student's balance and never
+     * mentions the outer row, so Oracle evaluates it once rather than
+     * per student.
+     */
+    public List<Map<String, Object>> belowAverage() throws SQLException {
+        String sql = """
+                SELECT s.student_id,
+                       s.first_name || ' ' || s.last_name       AS full_name,
+                       pkg_timebank.fn_balance (s.student_id)   AS credit_balance,
+                       (SELECT policy_value
+                        FROM   credit_policy
+                        WHERE  policy_key = 'OVERDRAFT_FLOOR')  AS floor_is,
+                       CASE WHEN pkg_timebank.fn_balance (s.student_id) <= 0.5
+                            THEN 'NUDGE TO TUTOR' ELSE 'ok' END AS action
+                FROM   student s
+                WHERE  pkg_timebank.fn_balance (s.student_id) <
+                       (SELECT AVG (total)
+                        FROM  (SELECT SUM (amount) AS total
+                               FROM   credit_txn
+                               GROUP  BY student_id))
+                ORDER  BY credit_balance, s.student_id""";
+
+        return rowsOf("MEMBER 1  .  Students below the campus average", sql);
+    }
+
+    /**
+     * CORRELATED SUBQUERY — registered long ago, never booked anything.
+     *
+     * <p>NOT EXISTS is re-evaluated for every student, using that
+     * student's own id — that is the correlation — and Oracle stops at
+     * the first booking it finds rather than counting them all.
+     */
+    public List<Map<String, Object>> neverBooked() throws SQLException {
+        String sql = """
+                SELECT s.student_id,
+                       s.first_name || ' ' || s.last_name      AS full_name,
+                       TRUNC (SYSDATE - s.join_date)           AS days_since_joining,
+                       pkg_timebank.fn_balance (s.student_id)  AS unused_credits
+                FROM   student s
+                WHERE  SYSDATE - s.join_date > 30
+                AND    NOT EXISTS (SELECT 1
+                                   FROM   booking b
+                                   WHERE  b.tutee_id = s.student_id)
+                ORDER  BY days_since_joining DESC""";
+
+        return rowsOf("MEMBER 1  .  Registered but never booked", sql);
+    }
+
+    /**
+     * AGGREGATE — the department scoreboard.
+     *
+     * <p>WHERE filters rows before grouping; HAVING filters groups after
+     * it, and only HAVING can see COUNT(). SUM(CASE ...) pivots one
+     * column into three without PIVOT.
+     */
+    public List<Map<String, Object>> departmentScoreboard() throws SQLException {
+        String sql = """
+                SELECT d.school,
+                       d.dept_name,
+                       COUNT (s.student_id)                                AS students,
+                       SUM (CASE WHEN t.student_id IS NOT NULL
+                                 THEN 1 ELSE 0 END)                        AS tutors,
+                       SUM (CASE WHEN e.student_id IS NOT NULL
+                                 THEN 1 ELSE 0 END)                        AS learners,
+                       ROUND (AVG (FLOOR (MONTHS_BETWEEN (SYSDATE, s.dob)/12)), 1)
+                                                                           AS avg_age
+                FROM   department d
+                       JOIN      student s ON s.dept_id    = d.dept_id
+                       LEFT JOIN tutor   t ON t.student_id = s.student_id
+                       LEFT JOIN tutee   e ON e.student_id = s.student_id
+                WHERE  s.account_status = 'ACTIVE'
+                GROUP  BY d.school, d.dept_name
+                HAVING COUNT (s.student_id) >= 1
+                ORDER  BY students DESC""";
+
+        return rowsOf("MEMBER 1  .  Department scoreboard", sql);
+    }
+
+    /**
+     * ANALYTIC (WINDOW) — rank each student inside their own department.
+     *
+     * <p>An analytic function computes over a window of rows but keeps
+     * every row, which GROUP BY cannot: PARTITION BY restarts the
+     * numbering per department, and LAG shows the balance of the person
+     * one place above.
+     */
+    public List<Map<String, Object>> balanceRanking() throws SQLException {
+        String sql = """
+                SELECT d.school,
+                       s.first_name || ' ' || s.last_name                  AS full_name,
+                       v.credit_balance,
+                       RANK () OVER (PARTITION BY s.dept_id
+                                     ORDER BY v.credit_balance DESC)       AS rank_in_dept,
+                       ROUND (PERCENT_RANK () OVER (PARTITION BY s.dept_id
+                                                    ORDER BY v.credit_balance), 2)
+                                                                           AS percentile,
+                       NTILE (3) OVER (PARTITION BY s.dept_id
+                                       ORDER BY v.credit_balance DESC)     AS third,
+                       LAG (v.credit_balance) OVER (PARTITION BY s.dept_id
+                                                    ORDER BY v.credit_balance DESC)
+                                                                           AS person_above,
+                       COUNT (*) OVER (PARTITION BY s.dept_id)             AS dept_size
+                FROM   student s
+                       JOIN department        d ON d.dept_id    = s.dept_id
+                       JOIN v_student_balance v ON v.student_id = s.student_id
+                ORDER  BY d.school, rank_in_dept""";
+
+        return rowsOf("MEMBER 1  .  Balance ranking inside each department", sql);
+    }
+
+    /**
+     * Runs one of the views above and returns its rows as text.
+     *
+     * <p>They have different columns and none of them is a Student, so
+     * they share this instead of four near-identical mappers. Nothing is
+     * bound: each statement is fixed text chosen by the caller.
+     */
+    private List<Map<String, Object>> rowsOf(String label, String sql)
+            throws SQLException {
+        long t0 = SqlLog.q(label, sql);
+
+        try (Connection c = Database.get();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            ResultSetMetaData meta = rs.getMetaData();
+            List<Map<String, Object>> out = new ArrayList<>();
+
+            while (rs.next()) {
+                Map<String, Object> row = new java.util.LinkedHashMap<>();
+                for (int i = 1; i <= meta.getColumnCount(); i++) {
+                    String name = meta.getColumnLabel(i).toLowerCase().replace('_', ' ');
+                    String v = rs.getString(i);
+                    row.put(name, v == null ? "\u2014" : v);
+                }
+                out.add(row);
+            }
+
+            SqlLog.rows(out.size(), t0);
+            return out;
         }
     }
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_widgets.dart';
 import '../../domain/entities/student.dart';
@@ -21,6 +23,60 @@ class StudentsPage extends StatefulWidget {
 
 class _StudentsPageState extends State<StudentsPage> {
   final _searchController = TextEditingController();
+  final ApiClient _api = sl<ApiClient>();
+
+  /// The views of the directory, beyond the plain list.
+  ///
+  /// Each answers a question an administrator actually asks, and each is
+  /// a different kind of SELECT — which is also what makes them worth
+  /// showing at the review. The SQL for each appears in the API window.
+  static const _views = [
+    (null, 'Everyone', ''),
+    ('low-balance', 'Low on credits',
+        'Students below the campus average balance, so they can be nudged '
+        'to teach. The inner query averages every balance; the outer keeps '
+        'those below it.'),
+    ('never-booked', 'Never booked',
+        'Registered over 30 days ago and still never booked. NOT EXISTS is '
+        're-run for each student, against that student\'s own id.'),
+    ('by-department', 'By department',
+        'Students, tutors and learners per department. WHERE filters rows '
+        'before grouping; HAVING filters the groups after it.'),
+    ('ranking', 'Ranking',
+        'Each student ranked inside their own department. The window keeps '
+        'every row, which GROUP BY cannot, so everyone appears with their '
+        'own place.'),
+  ];
+
+  String? _view;
+  List<dynamic> _rows = [];
+  bool _loadingView = false;
+  String? _viewError;
+
+  Future<void> _openView(String? key) async {
+    setState(() {
+      _view = key;
+      _rows = [];
+      _viewError = null;
+      _loadingView = key != null;
+    });
+    if (key == null) return;
+
+    try {
+      final data = await _api.get('/api/students/views/$key') as List;
+      if (!mounted) return;
+      setState(() {
+        _rows = data;
+        _loadingView = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _viewError = '$e';
+        _loadingView = false;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -50,15 +106,35 @@ class _StudentsPageState extends State<StudentsPage> {
       ),
       body: Column(
         children: [
-          _SearchField(
-            controller: _searchController,
-            onSearch: (q) => context.read<StudentBloc>().add(
-                  q.isEmpty
-                      ? const StudentsRequested()
-                      : StudentsSearched(q),
-                ),
+          SizedBox(
+            height: 44,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              children: [
+                for (final (key, label, _) in _views)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(label, style: const TextStyle(fontSize: 12)),
+                      selected: _view == key,
+                      onSelected: (_) => _openView(key),
+                    ),
+                  ),
+              ],
+            ),
           ),
-          Expanded(
+          if (_view == null)
+            _SearchField(
+              controller: _searchController,
+              onSearch: (q) => context.read<StudentBloc>().add(
+                    q.isEmpty
+                        ? const StudentsRequested()
+                        : StudentsSearched(q),
+                  ),
+            ),
+          if (_view != null) _viewBody(),
+          if (_view == null) Expanded(
             child: BlocConsumer<StudentBloc, StudentState>(
               // listenWhen keeps one-shot states (snackbars) out of the
               // builder, so the list is not rebuilt for a toast.
@@ -102,6 +178,39 @@ class _StudentsPageState extends State<StudentsPage> {
     );
   }
 
+  /// One of the four views: its question, then the rows it returned.
+  Widget _viewBody() {
+    final note = _views.firstWhere((v) => v.$1 == _view).$3;
+
+    return Expanded(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+        children: [
+          InfoBanner(note, icon: Icons.help_outline),
+          const SizedBox(height: 12),
+          if (_loadingView)
+            const LoadingView(label: 'Asking Oracle')
+          else if (_viewError != null)
+            ErrorView(message: _viewError!, onRetry: () => _openView(_view))
+          else if (_rows.isEmpty)
+            const EmptyState(
+              icon: Icons.inbox_outlined,
+              title: 'No rows',
+              hint: 'Nothing matched this question.',
+            )
+          else ...[
+            Text(
+              plural(_rows.length, 'row'),
+              style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 8),
+            for (final row in _rows) _RowCard(row: row as Map<String, dynamic>),
+          ],
+        ],
+      ),
+    );
+  }
+
   void _openRegister() {
     final bloc = context.read<StudentBloc>();
     Navigator.of(context).push(MaterialPageRoute(
@@ -137,6 +246,65 @@ class _StudentsPageState extends State<StudentsPage> {
 }
 
 // ---------------------------------------------------------------------
+
+/// One row of a view, as label-and-value lines.
+///
+/// A table would need horizontal scrolling on a phone and these views
+/// have up to eight columns, so each row is drawn as its own small card
+/// with the first column as the heading.
+class _RowCard extends StatelessWidget {
+  final Map<String, dynamic> row;
+  const _RowCard({required this.row});
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = row.entries.toList();
+    final heading = entries.length > 1 ? entries[1] : entries.first;
+    final rest = entries.where((e) => e.key != heading.key).toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Panel(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${heading.value}',
+              style: const TextStyle(
+                  fontSize: 13.5, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 7),
+            Wrap(
+              spacing: 18,
+              runSpacing: 6,
+              children: [
+                for (final e in rest)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        e.key.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 9,
+                          letterSpacing: 0.7,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text('${e.value}',
+                          style: const TextStyle(fontSize: 12.5)),
+                    ],
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _SearchField extends StatelessWidget {
   final TextEditingController controller;

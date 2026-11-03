@@ -36,6 +36,37 @@ public class StudentController {
         return dao.listAll();
     }
 
+    /**
+     * GET /api/students/views/low-balance — and the three below it.
+     *
+     * <p>Four questions an administrator asks about the directory, each
+     * answered by a different kind of SELECT. They return rows of plain
+     * text rather than Students, because none of them is a student
+     * record: one is per department, one is a ranking.
+     */
+    @GetMapping("/views/low-balance")
+    public List<Map<String, Object>> lowBalance() throws SQLException {
+        return dao.belowAverage();
+    }
+
+    /** GET /api/students/views/never-booked */
+    @GetMapping("/views/never-booked")
+    public List<Map<String, Object>> neverBooked() throws SQLException {
+        return dao.neverBooked();
+    }
+
+    /** GET /api/students/views/by-department */
+    @GetMapping("/views/by-department")
+    public List<Map<String, Object>> byDepartment() throws SQLException {
+        return dao.departmentScoreboard();
+    }
+
+    /** GET /api/students/views/ranking */
+    @GetMapping("/views/ranking")
+    public List<Map<String, Object>> ranking() throws SQLException {
+        return dao.balanceRanking();
+    }
+
     /** GET /api/students/search?q=riya — by name or registration number. */
     @GetMapping("/search")
     public List<Student> search(@RequestParam(name = "q", defaultValue = "") String q)
